@@ -1,0 +1,225 @@
+{
+  "schemaVersion": 1,
+  "buildings": [
+    {
+      "id": "existing_house",
+      "name": "Existing House",
+      "category": "residential",
+      "footprint": {
+        "width": 2,
+        "height": 3
+      },
+      "floors": 1,
+      "approvalRequired": 1,
+      "constructionCost": 0,
+      "constructionMonths": 0,
+      "operatingExpense": 650,
+      "baseRentPerUnit": 2200,
+      "residentialUnits": 1,
+      "retailUnits": 0,
+      "parkingCapacity": 0,
+      "parkingDemand": 1,
+      "appealModifier": -2,
+      "roadAccessRequired": true,
+      "enabledInMvp": true
+    },
+    {
+      "id": "small_house",
+      "name": "Small House",
+      "category": "residential",
+      "footprint": {
+        "width": 2,
+        "height": 3
+      },
+      "floors": 1,
+      "approvalRequired": 1,
+      "constructionCost": 95000,
+      "constructionMonths": 3,
+      "operatingExpense": 550,
+      "baseRentPerUnit": 2600,
+      "residentialUnits": 1,
+      "retailUnits": 0,
+      "parkingCapacity": 0,
+      "parkingDemand": 1,
+      "appealModifier": 1,
+      "roadAccessRequired": true,
+      "enabledInMvp": true
+    },
+    {
+      "id": "suburb_house",
+      "name": "Suburb House",
+      "category": "residential",
+      "footprint": {
+        "width": 2,
+        "height": 3
+      },
+      "floors": 1,
+      "approvalRequired": 1,
+      "constructionCost": 85000,
+      "constructionMonths": 3,
+      "operatingExpense": 250,
+      "baseRentPerUnit": 2400,
+      "residentialUnits": 1,
+      "retailUnits": 0,
+      "parkingCapacity": 0,
+      "parkingDemand": 0,
+      "appealModifier": 1,
+      "roadAccessRequired": true,
+      "enabledInMvp": true
+    },
+    {
+      "id": "duplex",
+      "name": "Duplex",
+      "category": "residential",
+      "footprint": {
+        "width": 3,
+        "height": 3
+      },
+      "floors": 2,
+      "approvalRequired": 2,
+      "constructionCost": 165000,
+      "constructionMonths": 5,
+      "operatingExpense": 1050,
+      "baseRentPerUnit": 2250,
+      "residentialUnits": 2,
+      "retailUnits": 0,
+      "parkingCapacity": 0,
+      "parkingDemand": 2,
+      "appealModifier": 2,
+      "roadAccessRequired": true,
+      "enabledInMvp": true
+    },
+    {
+      "id": "apartment_4u",
+      "name": "Four-Unit Apartment",
+      "category": "residential",
+      "footprint": {
+        "width": 3,
+        "height": 4
+      },
+      "floors": 2,
+      "approvalRequired": 2,
+      "constructionCost": 310000,
+      "constructionMonths": 7,
+      "operatingExpense": 3200,
+      "baseRentPerUnit": 2300,
+      "residentialUnits": 4,
+      "retailUnits": 0,
+      "parkingCapacity": 0,
+      "parkingDemand": 2,
+      "appealModifier": 3,
+      "roadAccessRequired": true,
+      "enabledInMvp": true
+    },
+    {
+      "id": "corner_shop",
+      "name": "Corner Shop",
+      "category": "retail",
+      "footprint": {
+        "width": 3,
+        "height": 3
+      },
+      "floors": 1,
+      "approvalRequired": 1,
+      "constructionCost": 120000,
+      "constructionMonths": 4,
+      "operatingExpense": 1250,
+      "baseRentPerUnit": 4800,
+      "residentialUnits": 0,
+      "retailUnits": 1,
+      "parkingCapacity": 0,
+      "parkingDemand": 3,
+      "appealModifier": 1,
+      "roadAccessRequired": true,
+      "enabledInMvp": true
+    },
+    {
+      "id": "shop_apartments",
+      "name": "Shop + Apartments",
+      "category": "mixed",
+      "footprint": {
+        "width": 3,
+        "height": 3
+      },
+      "floors": 2,
+      "approvalRequired": 2,
+      "constructionCost": 245000,
+      "constructionMonths": 6,
+      "operatingExpense": 2400,
+      "baseResidentialRentPerUnit": 2450,
+      "baseRetailRentPerUnit": 5200,
+      "residentialUnits": 2,
+      "retailUnits": 1,
+      "parkingCapacity": 0,
+      "parkingDemand": 4,
+      "appealModifier": 5,
+      "roadAccessRequired": true,
+      "enabledInMvp": true
+    },
+    {
+      "id": "small_apartment",
+      "name": "Small Apartment Building",
+      "category": "residential",
+      "footprint": {
+        "width": 4,
+        "height": 4
+      },
+      "floors": 3,
+      "approvalRequired": 3,
+      "constructionCost": 520000,
+      "constructionMonths": 9,
+      "operatingExpense": 5100,
+      "baseRentPerUnit": 2350,
+      "residentialUnits": 6,
+      "retailUnits": 0,
+      "parkingCapacity": 0,
+      "parkingDemand": 4,
+      "appealModifier": 4,
+      "roadAccessRequired": true,
+      "enabledInMvp": true
+    },
+    {
+      "id": "surface_parking",
+      "name": "Surface Parking",
+      "category": "parking",
+      "footprint": {
+        "width": 1,
+        "height": 2
+      },
+      "floors": 0,
+      "approvalRequired": 1,
+      "constructionCost": 12000,
+      "constructionMonths": 1,
+      "operatingExpense": 90,
+      "residentialUnits": 0,
+      "retailUnits": 0,
+      "parkingCapacity": 2,
+      "parkingDemand": 0,
+      "appealModifier": -1,
+      "roadAccessRequired": true,
+      "enabledInMvp": true
+    },
+    {
+      "id": "small_park",
+      "name": "Small Park",
+      "category": "amenity",
+      "footprint": {
+        "width": 2,
+        "height": 2
+      },
+      "floors": 0,
+      "approvalRequired": 1,
+      "constructionCost": 18000,
+      "constructionMonths": 1,
+      "operatingExpense": 220,
+      "residentialUnits": 0,
+      "retailUnits": 0,
+      "parkingCapacity": 0,
+      "parkingDemand": 0,
+      "appealModifier": 10,
+      "roadAccessRequired": false,
+      "enabledInMvp": true
+    }
+  ],
+  "warning": "All values are starting balance assumptions and must remain configurable."
+}

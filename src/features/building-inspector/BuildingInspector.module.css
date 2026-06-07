@@ -1,0 +1,222 @@
+.inspector {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.section {
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.section:last-child {
+  border-bottom: none;
+}
+
+.title {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.detailList {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+}
+
+.detailList dt {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.detailList dd {
+  margin: 0;
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+}
+
+.detailList dd[data-tone='positive'] {
+  color: var(--color-positive);
+}
+
+.detailList dd[data-tone='negative'] {
+  color: var(--color-negative);
+}
+
+.note {
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+}
+
+.warning {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--color-negative);
+  background: rgb(248 113 113 / 10%);
+  border: 1px solid rgb(248 113 113 / 25%);
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+}
+
+.cancelButton {
+  margin-top: var(--space-3);
+  width: 100%;
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.cancelButton:hover {
+  border-color: var(--color-accent);
+}
+
+.actionRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.commitButton {
+  width: 100%;
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  background: var(--color-accent);
+  color: rgb(2 6 23);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.commitButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.secondaryButton {
+  width: 100%;
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.secondaryButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.dangerButton {
+  width: 100%;
+  padding: 0.55rem 1rem;
+  border: 1px solid rgb(248 113 113 / 45%);
+  border-radius: var(--radius-sm);
+  background: rgb(248 113 113 / 10%);
+  color: var(--color-negative);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dangerButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.riskList {
+  margin: var(--space-3) 0 0;
+  padding-left: 1.1rem;
+  color: var(--color-negative);
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+}
+
+.progressTrack {
+  margin-top: var(--space-3);
+  height: 0.45rem;
+  border-radius: 999px;
+  background: rgb(15 23 42 / 90%);
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background: linear-gradient(90deg, rgb(234 179 8) 0%, rgb(250 204 21) 100%);
+}
+
+.postureRow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.postureButton {
+  padding: 0.45rem 0.5rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+}
+
+.postureButton[data-active='true'] {
+  border-color: var(--color-accent);
+  background: rgb(56 189 248 / 12%);
+  color: var(--color-accent);
+}
+
+.subtitle {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.scoreBlock + .scoreBlock {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.breakdownList {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-1) var(--space-4);
+  margin: var(--space-3) 0 0;
+  font-size: var(--font-size-xs);
+}
+
+.breakdownList dt {
+  color: var(--color-text-muted);
+}
+
+.breakdownList dd {
+  margin: 0;
+  font-weight: 600;
+}

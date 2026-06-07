@@ -1,0 +1,63 @@
+key,initial_value,unit,status,notes
+starting_cash,180000,USD,assumption,Must support at least two viable openings
+base_appeal,45,score 0-100,assumption,Starter property baseline
+approval_2_positive_months,3,months,locked rule,Consecutive
+approval_2_min_condition,65,score 0-100,locked rule,Property average
+approval_2_cash_reserve,40000,USD,assumption,Tune after playtests
+approval_3_occupancy_months,4,months,locked rule,Consecutive
+approval_3_min_occupancy,75,percent,locked rule,Combined occupancy
+approval_3_min_appeal,60,score 0-100,locked rule,Property appeal
+approval_3_cash_reserve,80000,USD,assumption,Tune after playtests
+win_consecutive_months,3,months,locked rule,All win conditions
+win_net_cash_flow,12000,USD/month,assumption,Three consecutive months
+win_occupancy,85,percent,assumption,Combined occupancy
+win_appeal,65,score 0-100,assumption,Three consecutive months
+win_cash_reserve,60000,USD,assumption,Three consecutive months
+discount_rent_multiplier,0.85,multiplier,assumption,Better leasing
+premium_rent_multiplier,1.18,multiplier,assumption,Slower leasing
+discount_leasing_modifier,15,score,assumption,Normalized later
+premium_leasing_modifier,-18,score,assumption,Normalized later
+condition_decay_per_month,1,score,assumption,Revenue buildings only
+low_condition_expense_surcharge_percent,15,percent,assumption,Below 50 condition
+high_condition_appeal_threshold,85,score 0-100,assumption,Property average
+low_condition_appeal_threshold,50,score 0-100,assumption,Property average
+vacancy_appeal_threshold_percent,40,percent,assumption,Combined occupancy
+demand_drift_per_month,1,points,assumption,Drift toward baseline
+demand_variation_range,2,points,assumption,Seeded monthly swing
+local_customer_factor,3,points,assumption,Per occupied residential unit
+mixed_use_retail_synergy,5,points,assumption,Operating mixed-use boost
+retail_frontage_bonus,3,points,assumption,Road-front retail
+retail_parking_shortfall_penalty,4,points,assumption,Per space short
+retail_parking_coverage_penalty,12,points,assumption,Uncovered retail demand
+leasing_demand_weight,30,points,assumption,Max contribution
+leasing_appeal_weight,20,points,assumption,Max contribution
+leasing_condition_weight,15,points,assumption,Max contribution
+leasing_parking_weight,15,points,assumption,Coverage scaled
+leasing_move_in_threshold,50,score,assumption,Move-in gate
+leasing_move_out_threshold,45,score,assumption,Move-out gate
+apartment_max_occupancy_changes,2,units,assumption,Per month cap
+default_max_occupancy_changes,2,units,assumption,Per month cap
+suburb_demand_per_resident,1.5,points,assumption,Suburb theme only population-linked boost
+renovation_cost,32000,USD,assumption,One-time per building
+renovation_condition_gain,20,score 0-100,assumption,Added to current condition
+renovation_months,1,months,locked rule,No income while renovating
+demolition_cost_percent,10,percent,assumption,Of construction cost
+min_demolition_cost,5000,USD,assumption,Floor for any structure
+existing_house_demolition_cost,8500,USD,assumption,Starter asset teardown
+existing_house_sale_base,45000,USD,assumption,Starter asset resale value
+sale_value_percent,70,percent,assumption,Of depreciated improvement value
+max_idle_turns_target,3,turns,quality gate,Normal optimal play
+typical_approval_2_month,7-12,month range,quality target,Manual validation
+typical_mixed_use_completion,12-20,month range,quality target,Manual validation
+land_base_value,75000,USD,assumption,Property value floor
+stabilized_income_cap_months,48,months,assumption,Income capitalization horizon
+appeal_premium_per_point,750,USD,assumption,Above 50 appeal baseline
+construction_risk_percent,12,percent,assumption,Active project haircut
+construction_loan_min_project_cost,100000,USD,assumption,Loan eligibility threshold
+construction_loan_equity_percent,30,percent,locked rule,Minimum player equity
+construction_loan_term_months,48,months,assumption,Straight-line amortization
+refinance_max_ltv_percent,65,percent,locked rule,Proceeds capped by property value
+refinance_payment_per_1000_principal,18,USD/month,assumption,Fixed refinance payment rate
+emergency_investor_offer_amount,30000,USD,assumption,One-time recovery injection
+insolvency_loss_months,3,months,locked rule,Consecutive negative cash months
+warning_orange_reserve_months,2,months,assumption,Low reserve warning threshold

@@ -1,0 +1,186 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  background: rgb(2 6 23 / 72%);
+}
+
+.panel {
+  width: min(100%, 720px);
+  max-height: min(90vh, 860px);
+  overflow: auto;
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-panel);
+  box-shadow: 0 24px 64px rgb(2 6 23 / 45%);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.eyebrow {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+
+.closeButton,
+.primaryButton,
+.secondaryButton,
+.dangerButton {
+  border-radius: var(--radius-sm);
+  font: inherit;
+  cursor: pointer;
+}
+
+.closeButton {
+  padding: 0.55rem 0.85rem;
+  border: 1px solid var(--color-border-strong);
+  background: transparent;
+  color: var(--color-text);
+}
+
+.statusLine {
+  margin: 0 0 var(--space-4);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.slotGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.slotCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: rgb(15 23 35 / 55%);
+}
+
+.slotTitle {
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+.slotMeta,
+.slotTimestamp,
+.slotEmpty {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  line-height: 1.45;
+}
+
+.slotActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: auto;
+}
+
+.section {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.section + .section {
+  margin-top: var(--space-4);
+}
+
+.sectionTitle {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-sm);
+}
+
+.actionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.primaryButton {
+  padding: 0.55rem 0.85rem;
+  border: 1px solid var(--color-accent-strong);
+  background: linear-gradient(180deg, var(--color-accent) 0%, var(--color-accent-strong) 100%);
+  color: var(--color-text-inverse);
+  font-weight: 600;
+}
+
+.secondaryButton {
+  padding: 0.55rem 0.85rem;
+  border: 1px solid var(--color-border-strong);
+  background: transparent;
+  color: var(--color-text);
+}
+
+.dangerButton {
+  padding: 0.55rem 0.85rem;
+  border: 1px solid rgb(248 113 113 / 45%);
+  background: rgb(248 113 113 / 12%);
+  color: var(--color-text);
+}
+
+.secondaryButton:disabled,
+.primaryButton:disabled,
+.dangerButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.hiddenInput {
+  display: none;
+}
+
+.shortcutList {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  line-height: 1.6;
+}
+
+.shortcutList kbd {
+  display: inline-block;
+  min-width: 1.4rem;
+  padding: 0.1rem 0.35rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 4px;
+  background: rgb(15 23 35 / 75%);
+  font-size: var(--font-size-xs);
+  text-align: center;
+}
+
+@media (max-width: 900px) {
+  .slotGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1280px), (max-height: 720px) {
+  .panel {
+    max-height: calc(100vh - var(--space-4) * 2);
+  }
+}

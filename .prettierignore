@@ -1,0 +1,6 @@
+dist
+node_modules
+playwright-report
+test-results
+vertical_plot_manager_spec
+VERTICAL_PLOT_MANAGER_MASTER_SPEC.md

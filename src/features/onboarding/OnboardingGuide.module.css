@@ -1,0 +1,147 @@
+.guide {
+  position: absolute;
+  bottom: var(--space-4);
+  left: var(--space-4);
+  width: 248px;
+  z-index: 8;
+  background: rgb(11 18 32 / 92%);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 32px rgb(0 0 0 / 35%);
+  overflow: hidden;
+}
+
+.guideHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  background: rgb(17 24 39 / 80%);
+}
+
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  line-height: 1;
+}
+
+.collapseButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.6rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.collapseButton:hover {
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
+}
+
+.guideBody {
+  padding: var(--space-3);
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.objectiveList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  counter-reset: objective;
+}
+
+.objectiveItem {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+}
+
+.objectiveItem[data-complete='true'] {
+  color: var(--color-text-muted);
+}
+
+.objectiveItem[data-active='true'] {
+  border-color: rgb(56 189 248 / 30%);
+  background: rgb(56 189 248 / 6%);
+}
+
+.objectiveMarker {
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.objectiveTitle {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.objectiveDescription {
+  margin: var(--space-1) 0 0;
+  font-size: 0.7rem;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+.scenarioCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid rgb(74 222 128 / 20%);
+  border-radius: var(--radius-md);
+  background: rgb(74 222 128 / 6%);
+}
+
+.scenarioTitle {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+.scenarioBody {
+  margin: 0;
+  font-size: 0.7rem;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+}
+
+.dismissButton {
+  align-self: flex-start;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+}

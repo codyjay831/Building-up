@@ -1,0 +1,17 @@
+key,initial_value,unit,status,notes
+starting_cash,180000,USD,assumption,Must support at least two viable openings
+base_appeal,45,score 0-100,assumption,Starter property baseline
+approval_2_positive_months,3,months,locked rule,Consecutive
+approval_2_min_condition,65,score 0-100,locked rule,Property average
+approval_2_cash_reserve,40000,USD,assumption,Tune after playtests
+win_net_cash_flow,12000,USD/month,assumption,Three consecutive months
+win_occupancy,85,percent,assumption,Combined occupancy
+win_appeal,65,score 0-100,assumption,Three consecutive months
+win_cash_reserve,60000,USD,assumption,Three consecutive months
+discount_rent_multiplier,0.85,multiplier,assumption,Better leasing
+premium_rent_multiplier,1.18,multiplier,assumption,Slower leasing
+discount_leasing_modifier,15,score,assumption,Normalized later
+premium_leasing_modifier,-18,score,assumption,Normalized later
+max_idle_turns_target,3,turns,quality gate,Normal optimal play
+typical_approval_2_month,7-12,month range,quality target,Manual validation
+typical_mixed_use_completion,12-20,month range,quality target,Manual validation
