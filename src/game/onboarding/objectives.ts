@@ -1,3 +1,6 @@
+import type { ScenarioDefinition } from '@/game/domain/types';
+import { getTutorialBuildingDefinitionId } from '@/game/config/scenario';
+
 export const ONBOARDING_OBJECTIVE_IDS = [
   'select_house',
   'review_condition',
@@ -14,7 +17,7 @@ export interface OnboardingObjective {
   readonly description: string;
 }
 
-export const ONBOARDING_OBJECTIVES: readonly OnboardingObjective[] = [
+const DEFAULT_ONBOARDING_OBJECTIVES: readonly OnboardingObjective[] = [
   {
     id: 'select_house',
     title: 'Select the existing house',
@@ -42,12 +45,41 @@ export const ONBOARDING_OBJECTIVES: readonly OnboardingObjective[] = [
   },
 ];
 
+export const ONBOARDING_OBJECTIVES = DEFAULT_ONBOARDING_OBJECTIVES;
+
+export function getOnboardingObjectivesForScenario(
+  scenario: ScenarioDefinition,
+): readonly OnboardingObjective[] {
+  const copyOverrides = scenario.onboardingObjectiveCopy;
+
+  if (!copyOverrides) {
+    return DEFAULT_ONBOARDING_OBJECTIVES;
+  }
+
+  return DEFAULT_ONBOARDING_OBJECTIVES.map((objective) => {
+    const override = copyOverrides[objective.id as keyof typeof copyOverrides];
+
+    if (!override) {
+      return objective;
+    }
+
+    return {
+      ...objective,
+      title: override.title,
+      description: override.description,
+    };
+  });
+}
+
 export interface OnboardingProgress {
   readonly completedObjectiveIds: readonly OnboardingObjectiveId[];
   readonly keepDecisionMade: boolean;
   readonly reportReadAfterFirstMonth: boolean;
+  readonly tutorialInspectorOpened: boolean;
   readonly tutorialComplete: boolean;
   readonly scenarioCardDismissed: boolean;
+  readonly guideDisabled: boolean;
+  readonly guideCollapsed: boolean;
 }
 
 export function createInitialOnboardingProgress(): OnboardingProgress {
@@ -55,24 +87,29 @@ export function createInitialOnboardingProgress(): OnboardingProgress {
     completedObjectiveIds: [],
     keepDecisionMade: false,
     reportReadAfterFirstMonth: false,
+    tutorialInspectorOpened: false,
     tutorialComplete: false,
     scenarioCardDismissed: false,
+    guideDisabled: false,
+    guideCollapsed: false,
   };
 }
 
 export interface OnboardingContext {
   readonly selectedBuildingId: string | null;
   readonly selectedBuildingDefinitionId: string | null;
+  readonly tutorialBuildingDefinitionId: string;
   readonly month: number;
   readonly hasMonthlyReport: boolean;
   readonly reportDrawerOpen: boolean;
   readonly keepDecisionMade: boolean;
   readonly reportReadAfterFirstMonth: boolean;
-  readonly starterHouseRenovated: boolean;
+  readonly tutorialInspectorOpened: boolean;
+  readonly tutorialBuildingRenovated: boolean;
 }
 
-function isStarterHouseSelected(context: OnboardingContext): boolean {
-  return context.selectedBuildingDefinitionId === 'existing_house';
+function isTutorialBuildingSelected(context: OnboardingContext): boolean {
+  return context.selectedBuildingDefinitionId === context.tutorialBuildingDefinitionId;
 }
 
 export function isObjectiveComplete(
@@ -81,11 +118,11 @@ export function isObjectiveComplete(
 ): boolean {
   switch (objectiveId) {
     case 'select_house':
-      return isStarterHouseSelected(context);
+      return isTutorialBuildingSelected(context);
     case 'review_condition':
-      return isStarterHouseSelected(context);
+      return context.tutorialInspectorOpened;
     case 'keep_or_renovate':
-      return context.keepDecisionMade || context.starterHouseRenovated;
+      return context.keepDecisionMade || context.tutorialBuildingRenovated;
     case 'advance_month':
       return context.month >= 2;
     case 'read_report':
@@ -125,4 +162,24 @@ export function shouldMarkReportRead(context: OnboardingContext): boolean {
     context.reportDrawerOpen &&
     !context.reportReadAfterFirstMonth
   );
+}
+
+export function buildOnboardingContextFromState(
+  scenario: ScenarioDefinition,
+  params: {
+    readonly selectedBuildingId: string | null;
+    readonly selectedBuildingDefinitionId: string | null;
+    readonly month: number;
+    readonly hasMonthlyReport: boolean;
+    readonly reportDrawerOpen: boolean;
+    readonly keepDecisionMade: boolean;
+    readonly reportReadAfterFirstMonth: boolean;
+    readonly tutorialInspectorOpened: boolean;
+    readonly tutorialBuildingRenovated: boolean;
+  },
+): OnboardingContext {
+  return {
+    ...params,
+    tutorialBuildingDefinitionId: getTutorialBuildingDefinitionId(scenario),
+  };
 }

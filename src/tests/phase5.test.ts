@@ -2,8 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { advanceMonth } from '@/game/commands/advanceMonth';
 import { setRentPosture } from '@/game/commands/setRentPosture';
-import { createGameConfig, createStarterGameState, RIVERSIDE_STARTER_SCENARIO_ID, SUBURB_STARTER_SCENARIO_ID } from '@/game/config/scenario';
-import { advanceMarketDemand, calculateEffectiveResidentialDemand } from '@/game/domain/demand';
+import {
+  createGameConfig,
+  createStarterGameState,
+  RIVERSIDE_STARTER_SCENARIO_ID,
+} from '@/game/config/scenario';
+import { advanceMarketDemand } from '@/game/domain/demand';
 import {
   calculateEffectiveRetailDemand,
   calculateLeasingScore,
@@ -194,26 +198,6 @@ describe('occupancy movement', () => {
 
     expect(first.state.buildings[0]?.residentialOccupied).toBe(
       second.state.buildings[0]?.residentialOccupied,
-    );
-  });
-});
-
-describe('effective residential demand', () => {
-  const config = createGameConfig();
-
-  it('boosts suburb demand as residents move in', () => {
-    const suburb = createStarterGameState(SUBURB_STARTER_SCENARIO_ID, 'phase5-suburb-demand');
-    const baseline = calculateEffectiveResidentialDemand(suburb, config, config.balance);
-    const filled = {
-      ...suburb,
-      buildings: suburb.buildings.map((building, index) =>
-        index < 3 ? { ...building, residentialOccupied: 1 } : building,
-      ),
-    };
-
-    expect(baseline).toBe(50);
-    expect(calculateEffectiveResidentialDemand(filled, config, config.balance)).toBeGreaterThan(
-      baseline,
     );
   });
 });

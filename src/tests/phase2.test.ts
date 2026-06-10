@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { createGameConfig, createStarterGameState, RIVERSIDE_STARTER_SCENARIO_ID } from '@/game/config/scenario';
+import {
+  createGameConfig,
+  createStarterGameState,
+  RIVERSIDE_STARTER_SCENARIO_ID,
+} from '@/game/config/scenario';
 import { evaluatePlacementPreview, tileInFootprint } from '@/game/selectors/placementSelectors';
 import { createInitialGameStoreState, useGameStore } from '@/game/store/gameStore';
 
@@ -32,13 +36,13 @@ describe('placementSelectors', () => {
 
   it('changes validity when a footprint is rotated near the lot edge', () => {
     const upright = evaluatePlacementPreview(state, config, {
-      definitionId: 'small_house',
-      origin: { x: 10, y: 0 },
+      definitionId: 'access_path',
+      origin: { x: 11, y: 9 },
       rotation: 0,
     });
     const rotated = evaluatePlacementPreview(state, config, {
-      definitionId: 'small_house',
-      origin: { x: 10, y: 0 },
+      definitionId: 'access_path',
+      origin: { x: 11, y: 9 },
       rotation: 90,
     });
 

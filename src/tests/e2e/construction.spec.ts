@@ -1,9 +1,17 @@
 import { expect, test } from '@playwright/test';
 
-test('commits a project and advances construction', async ({ page }) => {
-  await page.goto('/');
+import { selectBuildCatalogItem } from '@/tests/e2e/helpers';
 
-  await page.getByRole('button', { name: 'Build Small Park' }).click();
+test.beforeEach(async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => {
+    localStorage.clear();
+  });
+  await page.reload();
+});
+
+test('commits a project and advances construction', async ({ page }) => {
+  await selectBuildCatalogItem(page, 'Build Small Park');
   await page.getByTestId('tile-0-0').click();
 
   await expect(page.getByRole('heading', { name: 'Project forecast' })).toBeVisible();
@@ -21,6 +29,7 @@ test('commits a project and advances construction', async ({ page }) => {
   await expect(page.getByTestId('construction-progress')).toBeVisible();
 
   await page.getByTestId('advance-month-button').click();
+  await page.getByTestId('monthly-report-drawer').getByRole('button', { name: 'Close' }).click();
 
   await page.getByTestId('tile-0-0').click();
   await expect(page.getByText('Leasing', { exact: true })).toBeVisible();

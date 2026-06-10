@@ -1,8 +1,6 @@
 /** Serializable domain truth for Vertical Plot Manager. */
 
-export const LOT_WIDTH = 12;
-export const LOT_HEIGHT = 12;
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 3;
 
 export type TileCoord = {
   readonly x: number;
@@ -18,7 +16,13 @@ export interface PlacedFootprint {
   readonly rotation: Rotation;
 }
 
-export type BuildingCategory = 'residential' | 'retail' | 'mixed' | 'parking' | 'amenity';
+export type BuildingCategory =
+  | 'residential'
+  | 'retail'
+  | 'mixed'
+  | 'parking'
+  | 'amenity'
+  | 'infrastructure';
 
 export type BuildingLifecycleState =
   | 'existing'
@@ -51,6 +55,7 @@ export interface BuildingDefinition {
   readonly parkingDemand: number;
   readonly appealModifier: number;
   readonly roadAccessRequired: boolean;
+  readonly isAccessPath?: boolean;
   readonly enabledInMvp: boolean;
   readonly baseRentPerUnit?: number;
   readonly baseResidentialRentPerUnit?: number;
@@ -72,8 +77,8 @@ export interface BuildingInstance {
 export interface LotState {
   readonly width: number;
   readonly height: number;
-  /** Walkable driveway or access tiles that provide parking; not buildable. */
-  readonly accessTiles: readonly TileCoord[];
+  /** Relocatable driveway segment connected to South Road; provides parking. */
+  readonly drivewayTiles: readonly TileCoord[];
   readonly accessParkingCapacity: number;
 }
 
@@ -98,6 +103,10 @@ export interface DebtState {
   readonly projectId?: string;
   /** When false, principal is committed but monthly payments have not started. */
   readonly paymentsActive: boolean;
+  /** Lender funds released to date during the construction phase. */
+  readonly disbursedPrincipal: number;
+  /** Annual interest rate applied during construction (construction loans only). */
+  readonly annualInterestRate: number;
 }
 
 export type ConstructionProjectStatus =
@@ -116,8 +125,7 @@ export interface ConstructionProject {
   readonly monthsRemaining: number;
   readonly totalCost: number;
   readonly depositPaid: number;
-  /** Locked draw schedule; remaining draws are the first `monthsRemaining` entries. */
-  readonly monthlyDraws: readonly number[];
+  readonly buildDurationMonths: number;
   readonly amountSpent: number;
   readonly financedWithLoan: boolean;
   readonly loanDebtId?: string;
@@ -130,16 +138,26 @@ export interface ForecastRisk {
   readonly message: string;
 }
 
+export interface ConstructionLoanForecast {
+  readonly eligible: boolean;
+  readonly equityRequired: number;
+  readonly loanPrincipal: number;
+  readonly monthlyPaymentAfterCompletion: number;
+  readonly annualInterestRate: number;
+  readonly estimatedFirstMonthInterest: number;
+  readonly estimatedPeakMonthInterest: number;
+}
+
 export interface ProjectForecast {
   readonly definitionId: string;
   readonly footprint: PlacedFootprint;
   readonly totalCost: number;
   readonly cashDueNow: number;
-  readonly monthlyDraws: readonly number[];
   readonly completionMonth: number;
   readonly buildDurationMonths: number;
   readonly parkingAfterBuild: { readonly capacity: number; readonly demand: number };
   readonly risks: readonly ForecastRisk[];
+  readonly constructionLoan: ConstructionLoanForecast;
 }
 
 export type DomainEvent =
@@ -147,7 +165,8 @@ export type DomainEvent =
   | {
       readonly type: 'ConstructionAdvanced';
       readonly projectId: string;
-      readonly draw: number;
+      readonly interestPaid: number;
+      readonly disbursed: number;
       readonly monthsRemaining: number;
     }
   | {
@@ -195,6 +214,7 @@ export type LedgerLineCategory =
   | 'rent_retail'
   | 'operating_expense'
   | 'construction_draw'
+  | 'construction_loan_interest'
   | 'project_deposit'
   | 'project_refund'
   | 'renovation_cost'
@@ -224,6 +244,14 @@ export interface MonthlyLedgerEntry {
   readonly grossRent: number;
   readonly operatingExpenses: number;
   readonly occupancyChanges?: readonly OccupancyLedgerChange[];
+  readonly demandChange?: DemandLedgerChange;
+  readonly propertyHealthSnapshot?: PropertyHealthLedgerSnapshot;
+  readonly previousPropertyHealthSnapshot?: PropertyHealthLedgerSnapshot;
+}
+
+export interface LeasingSnapshotFactor {
+  readonly key: string;
+  readonly value: number;
 }
 
 export interface OccupancyLedgerChange {
@@ -231,6 +259,24 @@ export interface OccupancyLedgerChange {
   readonly buildingName: string;
   readonly residentialDelta: number;
   readonly retailDelta: number;
+  readonly residentialLeasingScore?: number;
+  readonly retailLeasingScore?: number;
+  readonly residentialTopFactors?: readonly LeasingSnapshotFactor[];
+  readonly retailTopFactors?: readonly LeasingSnapshotFactor[];
+  readonly moveOutThreshold?: number;
+  readonly moveInThreshold?: number;
+}
+
+export interface DemandLedgerChange {
+  readonly residentialDemand: number;
+  readonly retailDemand: number;
+  readonly previousResidentialDemand: number;
+  readonly previousRetailDemand: number;
+}
+
+export interface PropertyHealthLedgerSnapshot {
+  readonly score: number;
+  readonly occupancyPercent: number;
 }
 
 export interface ParkingSnapshot {
@@ -283,6 +329,8 @@ export type PlacementFailureReason =
   | 'insufficient_approval'
   | 'insufficient_cash'
   | 'no_road_access'
+  | 'blocks_road_access'
+  | 'access_path_disconnected'
   | 'building_locked'
   | 'construction_overlap';
 
@@ -300,7 +348,10 @@ export type CommandFailureReason =
   | 'loan_not_eligible'
   | 'refinance_unavailable'
   | 'emergency_offer_unavailable'
-  | 'insufficient_equity';
+  | 'insufficient_equity'
+  | 'invalid_debug_amount'
+  | 'driveway_not_relocatable'
+  | 'driveway_not_connected';
 
 export interface PlacementFailure {
   readonly ok: false;
@@ -384,15 +435,38 @@ export interface BalanceAssumptions {
   readonly emergencyInvestorOfferAmount: number;
   readonly insolvencyLossMonths: number;
   readonly warningOrangeReserveMonths: number;
+  readonly neighborhoodFillWinNetCashFlow: number;
+}
+
+export type WinProfile = 'mixed_use_stabilization' | 'neighborhood_fill';
+
+export type OnboardingObjectiveCopyKey = 'select_house' | 'review_condition' | 'keep_or_renovate';
+
+export interface OnboardingObjectiveCopy {
+  readonly title: string;
+  readonly description: string;
+}
+
+export interface ConstructionFinanceEra {
+  readonly id: string;
+  readonly label: string;
+  readonly startYear: number;
+  readonly endYear: number | null;
+  readonly minProjectCost: number;
+  readonly equityPercent: number;
+  readonly annualInterestRate: number;
 }
 
 export interface ScenarioDefinition {
   readonly id: string;
   readonly name: string;
+  readonly startYear?: number;
   readonly theme?: 'urban' | 'suburb';
+  readonly winProfile: WinProfile;
+  readonly objectiveLabel: string;
+  readonly winBannerLabel: string;
   readonly residentialDemand: number;
   readonly retailDemand: number;
-  readonly lockedBuildingIds: readonly string[];
   readonly lot: {
     readonly width: number;
     readonly height: number;
@@ -406,6 +480,10 @@ export interface ScenarioDefinition {
   readonly appealRules?: {
     readonly vacancyPenaltyEnabled?: boolean;
   };
+  readonly tutorialBuildingDefinitionId?: string;
+  readonly onboardingObjectiveCopy?: Partial<
+    Record<OnboardingObjectiveCopyKey, OnboardingObjectiveCopy>
+  >;
 }
 
 export interface StarterBuildingSpec {
@@ -420,5 +498,6 @@ export interface GameConfig {
   readonly buildings: ReadonlyMap<string, BuildingDefinition>;
   readonly buildingList: readonly BuildingDefinition[];
   readonly balance: BalanceAssumptions;
+  readonly constructionFinanceEras: readonly ConstructionFinanceEra[];
   readonly scenarios: ReadonlyMap<string, ScenarioDefinition>;
 }

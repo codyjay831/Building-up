@@ -1,5 +1,7 @@
 import { getBuildingDefinition } from '@/game/config/buildings';
-import { buildProjectForecast, calculateProjectPaymentSchedule } from '@/game/domain/construction';
+import { getConstructionFinanceEra } from '@/game/config/constructionFinance';
+import { buildProjectForecast } from '@/game/domain/construction';
+import { getCalendarYear } from '@/game/domain/calendar';
 import {
   calculateConstructionLoanTerms,
   canOfferConstructionLoan,
@@ -33,22 +35,20 @@ export function placeProject(
   command: PlaceProjectCommand,
 ): CommandResult {
   const definition = getBuildingDefinition(config.buildings, command.definitionId);
-  const validation = validatePlacement({
-    state,
-    config,
-    definition,
-    footprint: command.footprint,
-  });
-
-  if (!validation.ok) {
-    return { ok: false, error: validation };
-  }
-
+  const calendarYear = getCalendarYear(state, config);
+  const era = getConstructionFinanceEra(config.constructionFinanceEras, calendarYear);
   const useConstructionLoan = command.useConstructionLoan === true;
-  const loanTerms = calculateConstructionLoanTerms(definition.constructionCost, config.balance);
+  const loanTerms = calculateConstructionLoanTerms(
+    definition.constructionCost,
+    era,
+    config.balance,
+    definition.constructionMonths,
+  );
+  const forecast = buildProjectForecast(state, config, command.definitionId, command.footprint);
+  const cashDueNow = useConstructionLoan ? loanTerms.equityRequired : forecast.cashDueNow;
 
   if (useConstructionLoan) {
-    if (!canOfferConstructionLoan(definition, state, config.balance)) {
+    if (!canOfferConstructionLoan(definition, state, era)) {
       return {
         ok: false,
         error: commandFailure(
@@ -67,28 +67,31 @@ export function placeProject(
         ),
       };
     }
-  }
-
-  const forecast = buildProjectForecast(state, config, command.definitionId, command.footprint);
-
-  if (!useConstructionLoan && !hasSufficientCash(state.cash, forecast.cashDueNow)) {
+  } else if (!hasSufficientCash(state.cash, forecast.cashDueNow)) {
     return {
       ok: false,
       error: commandFailure(
         'insufficient_cash',
-        `Insufficient cash for project deposit. Required ${String(forecast.cashDueNow)}, available ${String(state.cash)}`,
+        `Insufficient cash for project payment. Required ${String(forecast.cashDueNow)}, available ${String(state.cash)}`,
       ),
     };
   }
 
-  const schedule = calculateProjectPaymentSchedule(
-    definition.constructionCost,
-    definition.constructionMonths,
-  );
+  const validation = validatePlacement({
+    state,
+    config,
+    definition,
+    footprint: command.footprint,
+    minimumCashRequired: cashDueNow,
+  });
+
+  if (!validation.ok) {
+    return { ok: false, error: validation };
+  }
+
   const projectId = `project-${state.counters.nextProjectSequence.toString()}`;
   const buildingId = `building-${state.counters.nextBuildingSequence.toString()}`;
   const entryId = `ledger-${String(state.month)}-${String(state.ledger.length + 1)}`;
-  const cashDueNow = useConstructionLoan ? loanTerms.equityRequired : forecast.cashDueNow;
   const withDeposit = appendTransactionLedgerEntry(state, [
     createLedgerLine(
       entryId,
@@ -96,7 +99,7 @@ export function placeProject(
       'project_deposit',
       useConstructionLoan
         ? `${definition.name} — project equity contribution`
-        : `${definition.name} — project deposit`,
+        : `${definition.name} — project payment`,
       -cashDueNow,
       { projectId },
     ),
@@ -141,11 +144,11 @@ export function placeProject(
           footprint: command.footprint,
           status: 'under_construction',
           committedMonth: state.month,
-          monthsRemaining: schedule.monthlyDraws.length,
+          monthsRemaining: definition.constructionMonths,
           totalCost: definition.constructionCost,
-          depositPaid: useConstructionLoan ? cashDueNow : schedule.deposit,
-          monthlyDraws: schedule.monthlyDraws,
-          amountSpent: useConstructionLoan ? cashDueNow : schedule.deposit,
+          depositPaid: cashDueNow,
+          buildDurationMonths: definition.constructionMonths,
+          amountSpent: cashDueNow,
           financedWithLoan: useConstructionLoan,
           loanDebtId,
         },

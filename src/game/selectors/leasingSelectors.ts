@@ -8,7 +8,12 @@ import {
   type LeasingFactorBreakdown,
 } from '@/game/domain/leasing';
 import { calculatePropertyParking } from '@/game/domain/parking';
-import type { BalanceAssumptions, BuildingInstance, GameConfig, GameState } from '@/game/domain/types';
+import type {
+  BalanceAssumptions,
+  BuildingInstance,
+  GameConfig,
+  GameState,
+} from '@/game/domain/types';
 
 export interface BuildingLeasingView {
   readonly buildingId: string;

@@ -1,15 +1,20 @@
 import type { BuildingCategory, BuildingInstance, ConstructionProject } from '@/game/domain/types';
+import type { DrivewayPreview } from '@/game/domain/accessTiles';
+import { getDrivewaySegmentTiles } from '@/game/domain/accessTiles';
 import type { PlacementPreviewResult } from '@/game/selectors/placementSelectors';
 
 export type TileVisualKind =
   | 'empty'
   | 'access'
+  | 'road-network'
   | 'building'
   | 'construction'
   | 'selected-building'
   | 'selected-construction'
   | 'preview-valid'
-  | 'preview-invalid';
+  | 'preview-invalid'
+  | 'driveway-preview-valid'
+  | 'driveway-preview-invalid';
 
 export interface TileVisualState {
   readonly kind: TileVisualKind;
@@ -26,8 +31,27 @@ export function resolveTileVisualState(input: {
   readonly projectByTileKey: ReadonlyMap<string, ConstructionProject>;
   readonly selectedBuildingId: string | null;
   readonly previewResult: PlacementPreviewResult | null;
+  readonly roadNetworkTileKeys?: ReadonlySet<string>;
+  readonly drivewayPreview?: DrivewayPreview | null;
+  readonly drivewayPreviewValid?: boolean;
+  readonly drivewayTileCount?: number;
 }): TileVisualState {
   const key = `${String(input.x)},${String(input.y)}`;
+
+  if (input.drivewayPreview && input.drivewayTileCount !== undefined) {
+    const previewTiles = getDrivewaySegmentTiles(
+      input.drivewayPreview.origin,
+      input.drivewayPreview.rotation,
+      input.drivewayTileCount,
+    );
+    const inDrivewayPreview = previewTiles.some((tile) => `${String(tile.x)},${String(tile.y)}` === key);
+
+    if (inDrivewayPreview) {
+      return {
+        kind: input.drivewayPreviewValid ? 'driveway-preview-valid' : 'driveway-preview-invalid',
+      };
+    }
+  }
 
   if (input.previewResult) {
     const inPreview =
@@ -53,6 +77,10 @@ export function resolveTileVisualState(input: {
 
   if (input.accessTileKeys.has(key)) {
     return { kind: 'access' };
+  }
+
+  if (input.previewResult && input.roadNetworkTileKeys?.has(key)) {
+    return { kind: 'road-network' };
   }
 
   const building = input.buildingByTileKey.get(key);
@@ -122,8 +150,15 @@ export function buildBuildingTileMap(
   return map;
 }
 
+export function buildDrivewayTileKeys(
+  drivewayTiles: readonly { readonly x: number; readonly y: number }[],
+): ReadonlySet<string> {
+  return new Set(drivewayTiles.map((tile) => `${String(tile.x)},${String(tile.y)}`));
+}
+
+/** @deprecated Use buildDrivewayTileKeys */
 export function buildAccessTileKeys(
   accessTiles: readonly { readonly x: number; readonly y: number }[],
 ): ReadonlySet<string> {
-  return new Set(accessTiles.map((tile) => `${String(tile.x)},${String(tile.y)}`));
+  return buildDrivewayTileKeys(accessTiles);
 }

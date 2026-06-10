@@ -3,11 +3,15 @@ import { describe, expect, it } from 'vitest';
 import { advanceMonth } from '@/game/commands/advanceMonth';
 import { cancelProject } from '@/game/commands/cancelProject';
 import { placeProject } from '@/game/commands/placeProject';
-import { createGameConfig, createStarterGameState, RIVERSIDE_STARTER_SCENARIO_ID } from '@/game/config/scenario';
+import {
+  createGameConfig,
+  createStarterGameState,
+  RIVERSIDE_STARTER_SCENARIO_ID,
+} from '@/game/config/scenario';
 import {
   buildProjectForecast,
-  calculateProjectPaymentSchedule,
-  getNextDrawAmount,
+  getCashDueAtCommit,
+  getCommitmentDeposit,
 } from '@/game/domain/construction';
 import { getProjectForecastForPreview } from '@/game/selectors/forecastSelectors';
 
@@ -19,28 +23,23 @@ const SMALL_PARK_FOOTPRINT = {
 } as const;
 
 const SMALL_HOUSE_FOOTPRINT = {
-  origin: { x: 7, y: 6 },
+  origin: { x: 6, y: 6 },
   width: 2,
   height: 3,
   rotation: 0,
 } as const;
 
-describe('construction payment schedule', () => {
-  it('splits 25% deposit and remaining draws with final rounding', () => {
-    const schedule = calculateProjectPaymentSchedule(95_000, 3);
-
-    expect(schedule.deposit).toBe(23_750);
-    expect(schedule.monthlyDraws).toEqual([23_750, 23_750, 23_750]);
-    expect(schedule.deposit + schedule.monthlyDraws.reduce((sum, draw) => sum + draw, 0)).toBe(
-      95_000,
-    );
+describe('construction payment at commit', () => {
+  it('requires the full construction cost upfront for cash builds', () => {
+    expect(getCashDueAtCommit(95_000)).toBe(95_000);
+    expect(getCashDueAtCommit(12_000)).toBe(12_000);
   });
 
-  it('handles single-month projects', () => {
-    const schedule = calculateProjectPaymentSchedule(12_000, 1);
-
-    expect(schedule.deposit).toBe(3_000);
-    expect(schedule.monthlyDraws).toEqual([9_000]);
+  it('uses full cost for placement cash checks', () => {
+    const config = createGameConfig();
+    const definition = config.buildings.get('small_house');
+    expect(definition).toBeDefined();
+    expect(getCommitmentDeposit(definition as NonNullable<typeof definition>)).toBe(95_000);
   });
 });
 
@@ -48,14 +47,14 @@ describe('project forecast', () => {
   const config = createGameConfig();
   const state = createStarterGameState(RIVERSIDE_STARTER_SCENARIO_ID);
 
-  it('matches the locked payment schedule', () => {
+  it('shows full cash due at start and loan terms for eligible projects', () => {
     const forecast = buildProjectForecast(state, config, 'small_house', SMALL_HOUSE_FOOTPRINT);
-    const schedule = calculateProjectPaymentSchedule(95_000, 3);
 
     expect(forecast.totalCost).toBe(95_000);
-    expect(forecast.cashDueNow).toBe(schedule.deposit);
-    expect(forecast.monthlyDraws).toEqual(schedule.monthlyDraws);
+    expect(forecast.cashDueNow).toBe(95_000);
     expect(forecast.completionMonth).toBe(state.month + 3);
+    expect(forecast.constructionLoan.eligible).toBe(true);
+    expect(forecast.constructionLoan.equityRequired).toBe(38_000);
   });
 
   it('reuses domain formulas in the preview selector', () => {
@@ -65,8 +64,8 @@ describe('project forecast', () => {
       rotation: 0,
     });
 
-    expect(view.forecast.cashDueNow).toBe(4_500);
-    expect(view.forecast.monthlyDraws).toEqual([13_500]);
+    expect(view.forecast.cashDueNow).toBe(18_000);
+    expect(view.cashBuildNoteLabel).toBe('No payments during construction');
   });
 });
 
@@ -74,7 +73,7 @@ describe('placeProject command', () => {
   const config = createGameConfig();
   const starterState = createStarterGameState(RIVERSIDE_STARTER_SCENARIO_ID);
 
-  it('commits a valid project, deducts deposit, and records ledger', () => {
+  it('commits a valid project, deducts full payment, and records ledger', () => {
     const result = placeProject(starterState, config, {
       definitionId: 'small_park',
       footprint: SMALL_PARK_FOOTPRINT,
@@ -85,20 +84,20 @@ describe('placeProject command', () => {
       return;
     }
 
-    expect(result.state.cash).toBe(starterState.cash - 4_500);
+    expect(result.state.cash).toBe(starterState.cash - 18_000);
     expect(result.state.projects).toHaveLength(1);
-    expect(result.state.buildings).toHaveLength(2);
-    expect(result.state.buildings[1]?.lifecycleState).toBe('under_construction');
+    expect(result.state.buildings).toHaveLength(3);
+    expect(result.state.buildings[2]?.lifecycleState).toBe('under_construction');
     expect(result.state.ledger).toHaveLength(1);
-    expect(result.state.ledger[0]?.netCashFlow).toBe(-4_500);
+    expect(result.state.ledger[0]?.netCashFlow).toBe(-18_000);
     expect(result.events[0]).toEqual({
       type: 'ProjectCommitted',
       projectId: 'project-1',
-      deposit: 4_500,
+      deposit: 18_000,
     });
   });
 
-  it('rejects commitment when deposit exceeds cash', () => {
+  it('rejects commitment when full payment exceeds cash', () => {
     const poorState = { ...starterState, cash: 1_000 };
     const result = placeProject(poorState, config, {
       definitionId: 'small_house',
@@ -117,7 +116,7 @@ describe('placeProject command', () => {
 describe('construction lifecycle', () => {
   const config = createGameConfig();
 
-  it('executes forecast draws and completes after configured months', () => {
+  it('advances months without additional cash draws and completes on schedule', () => {
     let state = createStarterGameState(RIVERSIDE_STARTER_SCENARIO_ID);
     const commit = placeProject(state, config, {
       definitionId: 'small_house',
@@ -130,16 +129,9 @@ describe('construction lifecycle', () => {
     }
 
     state = commit.state;
-    let project = state.projects[0];
-    expect(project.id).toBe('project-1');
-
-    const forecast = buildProjectForecast(state, config, 'small_house', SMALL_HOUSE_FOOTPRINT);
-    const executedDraws: number[] = [];
+    const cashAfterCommit = state.cash;
 
     for (let monthIndex = 0; monthIndex < 3; monthIndex += 1) {
-      const nextDraw = getNextDrawAmount(project);
-      executedDraws.push(nextDraw);
-
       const advanced = advanceMonth(state, config);
       expect(advanced.ok).toBe(true);
       if (!advanced.ok) {
@@ -147,22 +139,16 @@ describe('construction lifecycle', () => {
       }
 
       state = advanced.state;
-      const nextProject = state.projects.find((activeProject) => activeProject.id === 'project-1');
-      if (nextProject) {
-        project = nextProject;
-      }
+      expect(state.projects[0]?.monthsRemaining).toBe(2 - monthIndex);
     }
 
-    expect(executedDraws).toEqual([...forecast.monthlyDraws]);
+    expect(state.cash).toBeGreaterThan(cashAfterCommit);
     expect(state.projects[0]?.status).toBe('completed');
-    expect(state.buildings[1]?.lifecycleState).toBe('leasing');
+    expect(state.buildings[2]?.lifecycleState).toBe('leasing');
     expect(state.month).toBe(4);
-    expect(
-      state.buildings.filter((building) => building.definitionId === 'small_house'),
-    ).toHaveLength(1);
   });
 
-  it('does not overspend cash on scheduled draws', () => {
+  it('does not charge additional construction cash during the build', () => {
     let state = createStarterGameState(RIVERSIDE_STARTER_SCENARIO_ID);
     const commit = placeProject(state, config, {
       definitionId: 'small_house',
@@ -189,7 +175,7 @@ describe('construction lifecycle', () => {
 
     expect(advanced.state.cash).toBeGreaterThanOrEqual(0);
     expect(advanced.state.cash).toBe(beforeCash + 1_550);
-    expect(advanced.state.projects[0]?.monthsRemaining).toBe(3);
+    expect(advanced.state.projects[0]?.monthsRemaining).toBe(2);
   });
 });
 
@@ -197,7 +183,7 @@ describe('cancelProject command', () => {
   const config = createGameConfig();
   const starterState = createStarterGameState(RIVERSIDE_STARTER_SCENARIO_ID);
 
-  it('cancels before first monthly advancement with 80% deposit refund', () => {
+  it('cancels before first monthly advancement with 80% payment refund', () => {
     const commit = placeProject(starterState, config, {
       definitionId: 'small_park',
       footprint: SMALL_PARK_FOOTPRINT,
@@ -216,16 +202,16 @@ describe('cancelProject command', () => {
     }
 
     expect(cancelled.state.projects[0]?.status).toBe('cancelled');
-    expect(cancelled.state.buildings).toHaveLength(1);
-    expect(cancelled.state.cash).toBe(starterState.cash - 4_500 + 3_600);
+    expect(cancelled.state.buildings).toHaveLength(2);
+    expect(cancelled.state.cash).toBe(starterState.cash - 18_000 + 14_400);
     expect(cancelled.events[0]).toEqual({
       type: 'ProjectCancelled',
       projectId: 'project-1',
-      refund: 3_600,
+      refund: 14_400,
     });
   });
 
-  it('rejects cancellation after the first draw', () => {
+  it('rejects cancellation after the first construction month', () => {
     let state = createStarterGameState(RIVERSIDE_STARTER_SCENARIO_ID);
     const commit = placeProject(state, config, {
       definitionId: 'small_park',

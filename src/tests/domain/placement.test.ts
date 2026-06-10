@@ -20,12 +20,20 @@ describe('starter scenario', () => {
     expect(state.month).toBe(1);
     expect(state.cash).toBe(config.balance.startingCash);
     expect(state.approval.level).toBe(1);
-    expect(state.buildings).toHaveLength(1);
+    expect(state.buildings).toHaveLength(2);
     expect(state.buildings[0]?.definitionId).toBe('existing_house');
+    expect(state.buildings[1]?.definitionId).toBe('access_path');
     expect(state.lot.accessParkingCapacity).toBe(2);
     expect(state.market.residentialDemand).toBe(55);
     expect(state.market.retailDemand).toBe(32);
     expect(state.appeal).toBe(config.balance.baseAppeal);
+  });
+
+  it('creates the riverside starter run by default', () => {
+    const state = createStarterGameState();
+
+    expect(state.scenarioId).toBe(RIVERSIDE_STARTER_SCENARIO_ID);
+    expect(state.buildings).toHaveLength(2);
   });
 });
 
@@ -59,7 +67,7 @@ describe('placement validation', () => {
 
   it('places a valid structure in a headless test', () => {
     const footprint = {
-      origin: { x: 7, y: 6 },
+      origin: { x: 6, y: 6 },
       width: 2,
       height: 3,
       rotation: 0,
@@ -69,9 +77,9 @@ describe('placement validation', () => {
 
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.state.buildings).toHaveLength(2);
-      expect(result.state.buildings[1]?.lifecycleState).toBe('planned');
-      expect(result.state.counters.nextBuildingSequence).toBe(3);
+      expect(result.state.buildings).toHaveLength(3);
+      expect(result.state.buildings[2]?.lifecycleState).toBe('planned');
+      expect(result.state.counters.nextBuildingSequence).toBe(4);
     }
   });
 
@@ -115,25 +123,7 @@ describe('placement validation', () => {
     }
   });
 
-  it('rejects locked and under-approved structures', () => {
-    const duplex = getBuildingDefinition(config.buildings, 'duplex');
-    const locked = validatePlacement({
-      state: starterState,
-      config,
-      definition: duplex,
-      footprint: {
-        origin: { x: 7, y: 0 },
-        width: 3,
-        height: 3,
-        rotation: 0,
-      },
-    });
-
-    expect(locked.ok).toBe(false);
-    if (!locked.ok) {
-      expect(locked.reason).toBe('building_locked');
-    }
-
+  it('rejects under-approved structures', () => {
     const underApproved = validatePlacement({
       state: {
         ...starterState,
@@ -182,7 +172,7 @@ describe('placement validation', () => {
       config,
       definition: getBuildingDefinition(config.buildings, 'small_house'),
       footprint: {
-        origin: { x: 7, y: 6 },
+        origin: { x: 6, y: 6 },
         width: 2,
         height: 3,
         rotation: 0,

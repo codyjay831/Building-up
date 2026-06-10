@@ -3,6 +3,7 @@ import { calculatePropertyValue } from '@/game/domain/propertyValue';
 import type {
   BalanceAssumptions,
   BuildingDefinition,
+  ConstructionFinanceEra,
   DebtState,
   GameConfig,
   GameState,
@@ -13,6 +14,9 @@ export interface ConstructionLoanTerms {
   readonly equityRequired: number;
   readonly loanPrincipal: number;
   readonly monthlyPayment: number;
+  readonly annualInterestRate: number;
+  readonly estimatedFirstMonthInterest: number;
+  readonly estimatedPeakMonthInterest: number;
 }
 
 export interface RefinanceTerms {
@@ -23,6 +27,12 @@ export interface RefinanceTerms {
 export interface DebtPaymentResult {
   readonly state: GameState;
   readonly lines: readonly LedgerLine[];
+}
+
+export interface ConstructionInterestResult {
+  readonly state: GameState;
+  readonly interestPaid: number;
+  readonly label: string;
 }
 
 export function getTotalDebtPrincipal(state: Readonly<GameState>): number {
@@ -38,28 +48,101 @@ export function getTotalMonthlyDebtPayment(state: Readonly<GameState>): number {
 
 export function hasActiveConstructionLoan(state: Readonly<GameState>): boolean {
   return state.debt.some(
-    (instrument) => instrument.type === 'construction_loan' && instrument.principal > 0,
+    (instrument) =>
+      instrument.type === 'construction_loan' &&
+      !instrument.paymentsActive &&
+      instrument.principal > 0,
   );
 }
 
 export function canOfferConstructionLoan(
   definition: Readonly<BuildingDefinition>,
   state: Readonly<GameState>,
-  balance: Readonly<BalanceAssumptions>,
+  era: Readonly<ConstructionFinanceEra>,
 ): boolean {
   return (
-    definition.constructionCost >= balance.constructionLoanMinProjectCost &&
-    !hasActiveConstructionLoan(state)
+    definition.constructionCost >= era.minProjectCost && !hasActiveConstructionLoan(state)
   );
+}
+
+export function calculateConstructionLoanInterest(
+  disbursedPrincipal: number,
+  annualInterestRate: number,
+): number {
+  if (disbursedPrincipal <= 0 || annualInterestRate <= 0) {
+    return 0;
+  }
+
+  return assertWholeDollars(
+    Math.round((disbursedPrincipal * annualInterestRate) / 12 / 100),
+    'constructionLoanInterest',
+  );
+}
+
+export function calculateLoanDisbursementSchedule(
+  loanPrincipal: number,
+  buildDurationMonths: number,
+): readonly number[] {
+  const normalizedPrincipal = assertWholeDollars(loanPrincipal, 'loanPrincipal');
+
+  if (buildDurationMonths <= 0) {
+    return [];
+  }
+
+  const disbursements: number[] = [];
+  const baseDisbursement = Math.floor(normalizedPrincipal / buildDurationMonths);
+  let allocated = 0;
+
+  for (let monthIndex = 0; monthIndex < buildDurationMonths; monthIndex += 1) {
+    if (monthIndex === buildDurationMonths - 1) {
+      disbursements.push(normalizedPrincipal - allocated);
+    } else {
+      disbursements.push(baseDisbursement);
+      allocated += baseDisbursement;
+    }
+  }
+
+  return disbursements;
+}
+
+export function estimateConstructionInterestRange(
+  loanPrincipal: number,
+  buildDurationMonths: number,
+  annualInterestRate: number,
+): { readonly firstMonth: number; readonly peakMonth: number } {
+  const schedule = calculateLoanDisbursementSchedule(loanPrincipal, buildDurationMonths);
+
+  if (schedule.length === 0) {
+    return { firstMonth: 0, peakMonth: 0 };
+  }
+
+  let cumulative = 0;
+  let firstMonth = 0;
+
+  for (const [index, disbursement] of schedule.entries()) {
+    cumulative += disbursement;
+    const interest = calculateConstructionLoanInterest(cumulative, annualInterestRate);
+
+    if (index === 0) {
+      firstMonth = interest;
+    }
+  }
+
+  return {
+    firstMonth,
+    peakMonth: calculateConstructionLoanInterest(loanPrincipal, annualInterestRate),
+  };
 }
 
 export function calculateConstructionLoanTerms(
   totalCost: number,
+  era: Readonly<ConstructionFinanceEra>,
   balance: Readonly<BalanceAssumptions>,
+  buildDurationMonths = 1,
 ): ConstructionLoanTerms {
   const normalizedCost = assertWholeDollars(totalCost, 'totalCost');
   const equityRequired = assertWholeDollars(
-    Math.round((normalizedCost * balance.constructionLoanEquityPercent) / 100),
+    Math.round((normalizedCost * era.equityPercent) / 100),
     'equityRequired',
   );
   const loanPrincipal = assertWholeDollars(
@@ -70,11 +153,95 @@ export function calculateConstructionLoanTerms(
     Math.ceil(loanPrincipal / balance.constructionLoanTermMonths),
     'constructionLoanMonthlyPayment',
   );
+  const interestRange = estimateConstructionInterestRange(
+    loanPrincipal,
+    buildDurationMonths,
+    era.annualInterestRate,
+  );
 
   return {
     equityRequired,
     loanPrincipal,
     monthlyPayment,
+    annualInterestRate: era.annualInterestRate,
+    estimatedFirstMonthInterest: interestRange.firstMonth,
+    estimatedPeakMonthInterest: interestRange.peakMonth,
+  };
+}
+
+export function calculateNextLoanDisbursement(
+  instrument: Readonly<DebtState>,
+  buildDurationMonths: number,
+  monthsRemaining: number,
+): number {
+  if (
+    instrument.type !== 'construction_loan' ||
+    buildDurationMonths <= 0 ||
+    monthsRemaining <= 0
+  ) {
+    return 0;
+  }
+
+  const schedule = calculateLoanDisbursementSchedule(
+    instrument.originalPrincipal,
+    buildDurationMonths,
+  );
+  const completedMonths = buildDurationMonths - monthsRemaining;
+  const nextDisbursement = schedule[completedMonths] ?? 0;
+  const remainingPrincipal = instrument.originalPrincipal - instrument.disbursedPrincipal;
+
+  return Math.min(nextDisbursement, remainingPrincipal);
+}
+
+export function disburseConstructionLoanFunds(
+  state: Readonly<GameState>,
+  debtId: string,
+  amount: number,
+): GameState {
+  const normalizedAmount = assertWholeDollars(amount, 'disbursement');
+
+  if (normalizedAmount <= 0) {
+    return state;
+  }
+
+  return {
+    ...state,
+    debt: state.debt.map((instrument) =>
+      instrument.id === debtId
+        ? {
+            ...instrument,
+            disbursedPrincipal: instrument.disbursedPrincipal + normalizedAmount,
+          }
+        : instrument,
+    ),
+  };
+}
+
+export function chargeConstructionLoanInterest(
+  state: Readonly<GameState>,
+  instrument: Readonly<DebtState>,
+  buildingName: string,
+): ConstructionInterestResult {
+  const interestPaid = calculateConstructionLoanInterest(
+    instrument.disbursedPrincipal,
+    instrument.annualInterestRate,
+  );
+
+  if (interestPaid <= 0) {
+    return {
+      state,
+      interestPaid: 0,
+      label: `${buildingName} — construction loan interest`,
+    };
+  }
+
+  return {
+    state: {
+      ...state,
+      cash: state.cash - interestPaid,
+    },
+    interestPaid,
+    label: `${buildingName} — construction loan interest`,
   };
 }
 
@@ -124,6 +291,8 @@ export function createConstructionLoanDebt(
     monthlyPayment: terms.monthlyPayment,
     projectId,
     paymentsActive: false,
+    disbursedPrincipal: 0,
+    annualInterestRate: terms.annualInterestRate,
   };
 }
 
@@ -139,6 +308,8 @@ export function createRefinanceDebt(
     originalPrincipal: proceeds,
     monthlyPayment,
     paymentsActive: true,
+    disbursedPrincipal: 0,
+    annualInterestRate: 0,
   };
 }
 

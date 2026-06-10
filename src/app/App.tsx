@@ -8,12 +8,21 @@ import { FinancePanel } from '@/features/finance-panel/FinancePanel';
 import { MonthlyReportDrawer } from '@/features/monthly-report/MonthlyReport';
 import { OnboardingGuide } from '@/features/onboarding/OnboardingGuide';
 import { PropertyBoard } from '@/features/property-board/PropertyBoard';
+import { ScenarioObjectiveStrip } from '@/features/scenario-objective/ScenarioObjectiveStrip';
 import { SettingsPanel } from '@/features/settings-panel/SettingsPanel';
+import { WinResultsModal } from '@/features/win-results/WinResultsModal';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { getScenarioObjectiveHudView } from '@/game/selectors/approvalSelectors';
 import { getFinanceWarningView } from '@/game/selectors/financeSelectors';
 import { getPropertySummary } from '@/game/selectors/propertySelectors';
+import {
+  getOccupancyWarningView,
+  getLossRecapView,
+} from '@/game/selectors/propertyHealthSelectors';
+import { getMonthlyReportStripLabel } from '@/game/selectors/monthlyReportSelectors';
 import { useGameStore } from '@/game/store/gameStore';
 import { enableDebugModeFromQuery, isDebugModeEnabled } from '@/game/telemetry/debugMode';
+import type { PropertyHealthTone } from '@/game/domain/propertyHealth';
 
 function formatSaveStatus(
   saveStatus: 'idle' | 'saving' | 'saved' | 'error',
@@ -27,6 +36,18 @@ function formatSaveStatus(
     return `Saved ${new Date(lastSavedAt).toLocaleTimeString()}`;
   }
   return 'Autosave on';
+}
+
+function healthToneToStatTone(tone: PropertyHealthTone): 'neutral' | 'positive' | 'negative' {
+  switch (tone) {
+    case 'healthy':
+      return 'positive';
+    case 'critical':
+    case 'declining':
+      return 'negative';
+    default:
+      return 'neutral';
+  }
 }
 
 export function App() {
@@ -45,9 +66,15 @@ export function App() {
   const toggleSettings = useGameStore((store) => store.toggleSettings);
   const bootstrapFromStorage = useGameStore((store) => store.bootstrapFromStorage);
   const clearSelection = useGameStore((store) => store.clearSelection);
+  const cancelPlacement = useGameStore((store) => store.cancelPlacement);
+  const dismissMilestoneToasts = useGameStore((store) => store.dismissMilestoneToasts);
 
   const summary = getPropertySummary(gameState, config);
-  const warning = getFinanceWarningView(gameState, config);
+  const objectiveHud = getScenarioObjectiveHudView(gameState, config);
+  const financeWarning = getFinanceWarningView(gameState, config);
+  const occupancyWarning = getOccupancyWarningView(gameState, config);
+  const lossRecap = getLossRecapView(gameState, config);
+  const eventStripLabel = getMonthlyReportStripLabel(gameState);
 
   useEffect(() => {
     enableDebugModeFromQuery();
@@ -60,7 +87,45 @@ export function App() {
     }
   }, [bootstrapFromStorage, persistence.bootstrapped]);
 
-  const isInspectorOpen = propertyOpen || !!ui.selectedBuildingId || !!ui.placementPreview;
+  useEffect(() => {
+    if (ui.milestoneToasts.length === 0) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      dismissMilestoneToasts();
+    }, 6000);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [dismissMilestoneToasts, ui.milestoneToasts]);
+
+  useEffect(() => {
+    if (!ui.monthTickPulse) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      useGameStore.setState((store) => ({
+        ui: {
+          ...store.ui,
+          monthTickPulse: false,
+        },
+      }));
+    }, 450);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [ui.monthTickPulse]);
+
+  const isInspectorOpen =
+    propertyOpen ||
+    !!ui.selectedBuildingId ||
+    !!ui.placementPreview ||
+    !!ui.selectedAccessTile ||
+    !!ui.drivewayPreview;
 
   useKeyboardShortcuts({
     buildOpen,
@@ -71,7 +136,12 @@ export function App() {
 
   const handleInspectorClose = () => {
     setPropertyOpen(false);
+    cancelPlacement();
     clearSelection();
+  };
+
+  const openPropertyPanel = () => {
+    setPropertyOpen(true);
   };
 
   return (
@@ -91,9 +161,27 @@ export function App() {
         </div>
 
         <div className={styles.statsRow} aria-label="Run summary">
-          <Stat label="Month" value={String(summary.month)} />
+          <Stat label="Time" value={summary.calendarLabel} />
           <Stat label="Cash" value={summary.cashLabel} />
-          <Stat label="Monthly Net" value={summary.monthlyNetLabel} tone={summary.monthlyNetTone} />
+          <Stat
+            label="Monthly Net"
+            value={summary.monthlyNetLabel}
+            tone={summary.monthlyNetTone}
+            monthTick={ui.monthTickPulse}
+          />
+          <StatButton
+            label="Residents"
+            value={summary.residentsLabel}
+            onClick={openPropertyPanel}
+            testId="hud-residents"
+          />
+          <StatButton
+            label="Property Health"
+            value={summary.propertyHealthLabel}
+            tone={healthToneToStatTone(summary.propertyHealthTone)}
+            onClick={openPropertyPanel}
+            testId="hud-property-health"
+          />
         </div>
 
         <div className={styles.toolbar}>
@@ -170,40 +258,86 @@ export function App() {
         </div>
       </header>
 
+      <ScenarioObjectiveStrip onOpenProperty={openPropertyPanel} />
+
       <div className={styles.boardRegion}>
         <PropertyBoard />
 
-        {/* Toast banners */}
-        {warning && gameState.status === 'active' && (
-          <div
-            className={styles.toast}
-            data-level={warning.level}
-            data-testid="finance-warning-banner"
-            role="status"
-          >
-            <strong>{warning.title}.</strong> {warning.message}
-            {warning.level === 'insolvency' && (
-              <> {String(warning.insolvencyMonthsRemaining)} month(s) remain before loss.</>
-            )}
-          </div>
-        )}
+        <div className={styles.toastStack}>
+          {ui.milestoneToasts.map((message) => (
+            <div
+              key={message}
+              className={styles.toastMilestone}
+              data-testid="milestone-toast"
+              role="status"
+            >
+              <strong>{message}</strong>
+            </div>
+          ))}
 
-        {gameState.status === 'won' && (
-          <div className={styles.toastWin} data-testid="win-banner" role="status">
-            <strong>Mixed-use stabilized.</strong> Three consecutive healthy months achieved.
-          </div>
-        )}
+          {financeWarning && gameState.status === 'active' && (
+            <div
+              className={styles.toast}
+              data-level={financeWarning.level}
+              data-testid="finance-warning-banner"
+              role="status"
+            >
+              <strong>{financeWarning.title}.</strong> {financeWarning.message}
+              {financeWarning.level === 'insolvency' && (
+                <>
+                  {' '}
+                  {String(financeWarning.insolvencyMonthsRemaining)} month(s) remain before loss.
+                </>
+              )}
+            </div>
+          )}
 
-        {gameState.status === 'lost' && (
-          <div className={styles.toastLoss} data-testid="loss-banner" role="status">
-            <strong>Property insolvent.</strong> No recovery path available.
-          </div>
-        )}
+          {occupancyWarning && gameState.status === 'active' && (
+            <div
+              className={styles.toast}
+              data-level={occupancyWarning.level === 'spiral' ? 'spiral' : occupancyWarning.level}
+              data-testid="occupancy-warning-banner"
+              role="status"
+            >
+              <strong>{occupancyWarning.title}.</strong> {occupancyWarning.message}
+            </div>
+          )}
 
-        {/* Floating onboarding widget */}
+          {gameState.status === 'won' && ui.winResultsDismissed && (
+            <div className={styles.toastWin} data-testid="win-banner" role="status">
+              <strong>{objectiveHud.winBannerLabel}</strong> Three consecutive healthy months
+              achieved.
+            </div>
+          )}
+
+          {gameState.status === 'lost' && (
+            <div className={styles.toastLoss} data-testid="loss-banner" role="status">
+              <strong>Property insolvent.</strong> No recovery path available.
+              <span className={styles.lossDetail}>
+                Occupancy {String(lossRecap.occupancyPercent)}% · Health{' '}
+                {String(lossRecap.propertyHealthScore)} · Insolvent{' '}
+                {String(lossRecap.insolventMonths)} month(s)
+              </span>
+              {lossRecap.topFactors.length > 0 && (
+                <span className={styles.lossDetail}>
+                  Likely causes: {lossRecap.topFactors.map((factor) => factor.label).join('; ')}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        <button
+          type="button"
+          className={styles.eventStrip}
+          data-testid="monthly-event-strip"
+          onClick={toggleReportDrawer}
+        >
+          {eventStripLabel}
+        </button>
+
         <OnboardingGuide />
 
-        {/* Left slide-in: Build catalog */}
         <div
           className={styles.buildDrawer}
           data-open={buildOpen ? 'true' : 'false'}
@@ -221,10 +355,13 @@ export function App() {
               Close
             </button>
           </div>
-          <BuildCatalog />
+          <BuildCatalog
+            onItemSelected={() => {
+              setBuildOpen(false);
+            }}
+          />
         </div>
 
-        {/* Centered modal: Finance */}
         {financeOpen && (
           <div
             className={styles.modalBackdrop}
@@ -252,7 +389,6 @@ export function App() {
           </div>
         )}
 
-        {/* Right slide-in: Building inspector */}
         <div
           className={styles.inspectorPanel}
           data-open={isInspectorOpen ? 'true' : 'false'}
@@ -273,6 +409,7 @@ export function App() {
 
         <MonthlyReportDrawer />
         <SettingsPanel />
+        <WinResultsModal />
       </div>
 
       {debugEnabled && (
@@ -290,16 +427,37 @@ export function App() {
 interface StatProps {
   label: string;
   value: string;
-  tone?: 'neutral' | 'positive' | 'negative';
+  tone?: 'neutral' | 'positive' | 'negative' | 'projected';
+  monthTick?: boolean;
 }
 
-function Stat({ label, value, tone = 'neutral' }: StatProps) {
+function Stat({ label, value, tone = 'neutral', monthTick = false }: StatProps) {
   return (
     <div className={styles.stat}>
       <dt className={styles.statLabel}>{label}</dt>
-      <dd className={styles.statValue} data-tone={tone}>
+      <dd
+        className={styles.statValue}
+        data-tone={tone}
+        data-month-tick={monthTick ? 'true' : 'false'}
+      >
         {value}
       </dd>
     </div>
+  );
+}
+
+interface StatButtonProps extends StatProps {
+  onClick: () => void;
+  testId: string;
+}
+
+function StatButton({ label, value, tone = 'neutral', onClick, testId }: StatButtonProps) {
+  return (
+    <button type="button" className={styles.statButton} onClick={onClick} data-testid={testId}>
+      <span className={styles.statLabel}>{label}</span>
+      <span className={styles.statValue} data-tone={tone}>
+        {value}
+      </span>
+    </button>
   );
 }

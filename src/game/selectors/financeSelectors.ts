@@ -1,4 +1,6 @@
+import { getConstructionFinanceEra } from '@/game/config/constructionFinance';
 import { formatMoney } from '@/game/domain/money';
+import { getCalendarYear } from '@/game/domain/calendar';
 import {
   calculateConstructionLoanTerms,
   calculateRefinanceCapacity,
@@ -40,9 +42,15 @@ export interface ConstructionLoanForecastView {
   readonly equityRequiredLabel: string;
   readonly loanPrincipalLabel: string;
   readonly monthlyPaymentLabel: string;
+  readonly interestRangeLabel: string;
 }
 
 function formatDebtInstrument(instrument: Readonly<DebtState>): DebtInstrumentView {
+  const constructionPhaseLabel =
+    instrument.type === 'construction_loan' && instrument.disbursedPrincipal > 0
+      ? `Construction phase (${formatMoney(instrument.disbursedPrincipal)} disbursed)`
+      : 'Construction phase';
+
   return {
     id: instrument.id,
     typeLabel: instrument.type === 'construction_loan' ? 'Construction loan' : 'Refinance',
@@ -51,7 +59,7 @@ function formatDebtInstrument(instrument: Readonly<DebtState>): DebtInstrumentVi
     monthlyPaymentLabel: instrument.paymentsActive
       ? formatMoney(instrument.monthlyPayment)
       : 'Starts after completion',
-    statusLabel: instrument.paymentsActive ? 'Payments active' : 'Construction phase',
+    statusLabel: instrument.paymentsActive ? 'Payments active' : constructionPhaseLabel,
   };
 }
 
@@ -84,14 +92,22 @@ export function getConstructionLoanForecastView(
   config: Readonly<GameConfig>,
   definition: Readonly<BuildingDefinition>,
 ): ConstructionLoanForecastView {
-  const eligible = canOfferConstructionLoan(definition, state, config.balance);
-  const terms = calculateConstructionLoanTerms(definition.constructionCost, config.balance);
+  const calendarYear = getCalendarYear(state, config);
+  const era = getConstructionFinanceEra(config.constructionFinanceEras, calendarYear);
+  const eligible = canOfferConstructionLoan(definition, state, era);
+  const terms = calculateConstructionLoanTerms(
+    definition.constructionCost,
+    era,
+    config.balance,
+    definition.constructionMonths,
+  );
 
   return {
     eligible,
     equityRequiredLabel: formatMoney(terms.equityRequired),
     loanPrincipalLabel: formatMoney(terms.loanPrincipal),
     monthlyPaymentLabel: formatMoney(terms.monthlyPayment),
+    interestRangeLabel: `${formatMoney(terms.estimatedFirstMonthInterest)} → ${formatMoney(terms.estimatedPeakMonthInterest)}/mo`,
   };
 }
 

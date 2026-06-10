@@ -1,8 +1,6 @@
 import { createGameConfig } from '@/game/config/scenario';
 import { FIXED_SEED_PRESETS } from '@/game/telemetry/fixedSeeds';
-import {
-  buildBalanceAdjustmentReportAt,
-} from '@/game/telemetry/balanceReport';
+import { buildBalanceAdjustmentReportAt } from '@/game/telemetry/balanceReport';
 import type { BalanceAdjustmentReport } from '@/game/telemetry/telemetryTypes';
 import {
   collectTelemetryFromState,

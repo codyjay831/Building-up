@@ -4,18 +4,23 @@ import { refinanceProperty } from '@/game/commands/refinanceProperty';
 import { renovateBuilding } from '@/game/commands/renovateBuilding';
 import { setRentPosture } from '@/game/commands/setRentPosture';
 import { getBuildingDefinition } from '@/game/config/buildings';
-import { createGameConfig, createStarterGameState, RIVERSIDE_STARTER_SCENARIO_ID } from '@/game/config/scenario';
-import { getCommitmentDeposit } from '@/game/domain/construction';
 import {
-  calculateConstructionLoanTerms,
-  canOfferConstructionLoan,
-} from '@/game/domain/debt';
+  createGameConfig,
+  createStarterGameState,
+  getScenarioDefinition,
+  getTutorialBuildingDefinitionId,
+  RIVERSIDE_STARTER_SCENARIO_ID,
+} from '@/game/config/scenario';
+import { getConstructionFinanceEra } from '@/game/config/constructionFinance';
+import { getCommitmentDeposit } from '@/game/domain/construction';
+import { getCalendarYear } from '@/game/domain/calendar';
+import { calculateConstructionLoanTerms, canOfferConstructionLoan } from '@/game/domain/debt';
 import { calculateCombinedOccupancyPercent } from '@/game/domain/leasing';
 import { getFinanceWarningLevel } from '@/game/domain/warnings';
-import type { CommandResult, GameConfig, GameState } from '@/game/domain/types';
+import type { CommandResult, GameConfig, GameState, PlacedFootprint } from '@/game/domain/types';
 import type { FixedSeedPreset } from '@/game/telemetry/fixedSeeds';
 import { applyFixedSeedMarketPreset } from '@/game/telemetry/fixedSeeds';
-import { findValidPlacement } from '@/game/telemetry/placementScan';
+import { findValidPlacement, findValidPlacementPreservingFutureBuild } from '@/game/telemetry/placementScan';
 import type { MonthlyTelemetrySnapshot, RunTelemetry } from '@/game/telemetry/telemetryTypes';
 
 export type OpeningStrategy = 'retail_first' | 'residential_first' | 'amenity_first';
@@ -24,6 +29,7 @@ export interface SmokeBotOptions {
   readonly strategy: OpeningStrategy;
   readonly seed: string;
   readonly preset?: FixedSeedPreset;
+  readonly scenarioId?: string;
   readonly maxMonths?: number;
   readonly config?: GameConfig;
 }
@@ -31,6 +37,7 @@ export interface SmokeBotOptions {
 interface BotAction {
   readonly kind: 'place' | 'renovate' | 'rent_posture' | 'refinance' | 'advance';
   readonly definitionId?: string;
+  readonly footprint?: PlacedFootprint;
   readonly buildingId?: string;
   readonly posture?: 'discount' | 'market' | 'premium';
   readonly useConstructionLoan?: boolean;
@@ -65,6 +72,36 @@ function isMixedUseComplete(state: Readonly<GameState>): boolean {
   );
 }
 
+function findTutorialRenovationTarget(
+  state: Readonly<GameState>,
+  config: Readonly<GameConfig>,
+): (typeof state.buildings)[number] | undefined {
+  const scenario = getScenarioDefinition(config.scenarios, state.scenarioId);
+  const tutorialDefinitionId = getTutorialBuildingDefinitionId(scenario);
+
+  return state.buildings.find(
+    (building) =>
+      building.definitionId === tutorialDefinitionId &&
+      !building.renovated &&
+      (building.lifecycleState === 'operating' || building.lifecycleState === 'leasing'),
+  );
+}
+
+function listPlayerPlacedBuildingChoices(
+  state: Readonly<GameState>,
+  config: Readonly<GameConfig>,
+): string[] {
+  const scenario = getScenarioDefinition(config.scenarios, state.scenarioId);
+  const starterCount = scenario.starterBuildings.length;
+
+  return state.buildings
+    .filter((building) => {
+      const match = /^building-(\d+)$/.exec(building.id);
+      return match !== null && Number(match[1]) > starterCount;
+    })
+    .map((building) => building.definitionId);
+}
+
 function chooseOpeningBuild(strategy: OpeningStrategy): string {
   switch (strategy) {
     case 'retail_first':
@@ -78,6 +115,64 @@ function chooseOpeningBuild(strategy: OpeningStrategy): string {
   }
 }
 
+function createPlaceAction(
+  state: Readonly<GameState>,
+  config: Readonly<GameConfig>,
+  definitionId: string,
+  options: { readonly preferLoan?: boolean; readonly preserveMixedUseRoom?: boolean } = {},
+): BotAction | null {
+  const footprint =
+    options.preserveMixedUseRoom === true
+      ? findValidPlacementPreservingFutureBuild(state, config, definitionId, 'shop_apartments')
+      : findValidPlacement(state, config, definitionId);
+
+  if (!footprint) {
+    return null;
+  }
+
+  const definition = getBuildingDefinition(config.buildings, definitionId);
+  const calendarYear = getCalendarYear(state, config);
+  const era = getConstructionFinanceEra(config.constructionFinanceEras, calendarYear);
+  const loanEligible = canOfferConstructionLoan(definition, state, era);
+  const loanTerms = calculateConstructionLoanTerms(
+    definition.constructionCost,
+    era,
+    config.balance,
+    definition.constructionMonths,
+  );
+  const fullCost = getCommitmentDeposit(definition);
+  const preferLoan = options.preferLoan === true;
+
+  if (preferLoan && loanEligible && state.cash >= loanTerms.equityRequired) {
+    return {
+      kind: 'place',
+      definitionId,
+      footprint,
+      useConstructionLoan: true,
+    };
+  }
+
+  if (state.cash >= fullCost) {
+    return {
+      kind: 'place',
+      definitionId,
+      footprint,
+      useConstructionLoan: false,
+    };
+  }
+
+  if (loanEligible && state.cash >= loanTerms.equityRequired) {
+    return {
+      kind: 'place',
+      definitionId,
+      footprint,
+      useConstructionLoan: true,
+    };
+  }
+
+  return null;
+}
+
 function getBuildingVacancy(
   building: GameState['buildings'][number],
   config: Readonly<GameConfig>,
@@ -85,8 +180,7 @@ function getBuildingVacancy(
   const definition = config.buildings.get(building.definitionId);
 
   return {
-    residentialVacant:
-      (definition?.residentialUnits ?? 0) > building.residentialOccupied,
+    residentialVacant: (definition?.residentialUnits ?? 0) > building.residentialOccupied,
     retailVacant: (definition?.retailUnits ?? 0) > building.retailOccupied,
   };
 }
@@ -142,23 +236,14 @@ function listAvailableBotActions(
   const openingBuild = chooseOpeningBuild(strategy);
 
   if (!hasBuildingDefinition(state, openingBuild) && !hasActiveProjects(state)) {
-    const footprint = findValidPlacement(state, config, openingBuild);
+    const placeAction = createPlaceAction(state, config, openingBuild, {
+      preferLoan: true,
+      preserveMixedUseRoom: true,
+    });
 
-    if (footprint) {
-      actions.push({ kind: 'place', definitionId: openingBuild });
+    if (placeAction) {
+      actions.push(placeAction);
     }
-  }
-
-  const starterHouse = state.buildings.find((building) => building.definitionId === 'existing_house');
-
-  if (
-    starterHouse &&
-    !starterHouse.renovated &&
-    starterHouse.lifecycleState === 'operating' &&
-    state.cash >= config.balance.renovationCost &&
-    state.month >= 2
-  ) {
-    actions.push({ kind: 'renovate', buildingId: starterHouse.id });
   }
 
   if (
@@ -168,30 +253,39 @@ function listAvailableBotActions(
   ) {
     const footprint = findValidPlacement(state, config, 'shop_apartments');
     const mixedUseDefinition = getBuildingDefinition(config.buildings, 'shop_apartments');
-    const mixedUseDeposit = getCommitmentDeposit(mixedUseDefinition);
-    const loanEligible = canOfferConstructionLoan(mixedUseDefinition, state, config.balance);
+    const calendarYear = getCalendarYear(state, config);
+    const era = getConstructionFinanceEra(config.constructionFinanceEras, calendarYear);
+    const loanEligible = canOfferConstructionLoan(mixedUseDefinition, state, era);
     const loanTerms = calculateConstructionLoanTerms(
       mixedUseDefinition.constructionCost,
+      era,
       config.balance,
+      mixedUseDefinition.constructionMonths,
     );
 
     if (footprint) {
-      if (state.cash >= mixedUseDeposit) {
-        actions.push({
-          kind: 'place',
-          definitionId: 'shop_apartments',
-          useConstructionLoan: loanEligible && state.cash < mixedUseDefinition.constructionCost,
-        });
-      } else if (loanEligible && state.cash >= loanTerms.equityRequired) {
+      if (loanEligible && state.cash >= loanTerms.equityRequired) {
         actions.push({
           kind: 'place',
           definitionId: 'shop_apartments',
           useConstructionLoan: true,
         });
+      } else if (state.cash >= getCommitmentDeposit(mixedUseDefinition)) {
+        actions.push({
+          kind: 'place',
+          definitionId: 'shop_apartments',
+          useConstructionLoan: false,
+        });
       } else if (!state.counters.refinanceUsed) {
         actions.push({ kind: 'refinance' });
       }
     }
+  }
+
+  const starterHouse = findTutorialRenovationTarget(state, config);
+
+  if (starterHouse && state.cash >= config.balance.renovationCost && state.month >= 2) {
+    actions.push({ kind: 'renovate', buildingId: starterHouse.id });
   }
 
   if (
@@ -214,10 +308,10 @@ function listAvailableBotActions(
     !hasBuildingDefinition(state, 'corner_shop') &&
     !hasActiveProjects(state)
   ) {
-    const footprint = findValidPlacement(state, config, 'corner_shop');
+    const placeAction = createPlaceAction(state, config, 'corner_shop', { preferLoan: true });
 
-    if (footprint) {
-      actions.push({ kind: 'place', definitionId: 'corner_shop' });
+    if (placeAction) {
+      actions.push(placeAction);
     }
   }
 
@@ -238,10 +332,7 @@ function listCashResponsiveActions(
       continue;
     }
 
-    if (
-      state.cash < config.balance.approval2CashReserve &&
-      building.rentPosture === 'premium'
-    ) {
+    if (state.cash < config.balance.approval2CashReserve && building.rentPosture === 'premium') {
       actions.push({ kind: 'rent_posture', buildingId: building.id, posture: 'market' });
       continue;
     }
@@ -286,7 +377,8 @@ function executeBotAction(
   }
 
   if (action.kind === 'place' && action.definitionId) {
-    const footprint = findValidPlacement(state, config, action.definitionId);
+    const footprint =
+      action.footprint ?? findValidPlacement(state, config, action.definitionId);
 
     if (!footprint) {
       return null;
@@ -326,8 +418,9 @@ function recordSnapshot(
 export function runSmokeSimulation(options: SmokeBotOptions): RunTelemetry {
   const config = options.config ?? createGameConfig();
   const maxMonths = options.maxMonths ?? 36;
+  const scenarioId = options.scenarioId ?? options.preset?.scenarioId ?? RIVERSIDE_STARTER_SCENARIO_ID;
   let state = applyPresetMarket(
-    createStarterGameState(RIVERSIDE_STARTER_SCENARIO_ID, options.seed, config),
+    createStarterGameState(scenarioId, options.seed, config),
     options.preset,
   );
 
@@ -475,12 +568,8 @@ export function collectTelemetryFromState(
     peakDebt: getTotalDebt(state),
     averageOccupancy: snapshot.occupancyPercent,
     averageAppeal: snapshot.appeal,
-    buildingChoices: state.buildings
-      .filter((building) => building.definitionId !== 'existing_house')
-      .map((building) => building.definitionId),
-    firstBuildingChoice:
-      state.buildings.find((building) => building.definitionId !== 'existing_house')
-        ?.definitionId ?? null,
+    buildingChoices: listPlayerPlacedBuildingChoices(state, config),
+    firstBuildingChoice: listPlayerPlacedBuildingChoices(state, config)[0] ?? null,
     outcomeMonth: state.status === 'active' ? null : state.month,
     monthlySnapshots: [snapshot],
   };

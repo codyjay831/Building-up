@@ -219,6 +219,28 @@
       "appealModifier": 10,
       "roadAccessRequired": false,
       "enabledInMvp": true
+    },
+    {
+      "id": "access_path",
+      "name": "Access Path",
+      "category": "infrastructure",
+      "footprint": {
+        "width": 1,
+        "height": 3
+      },
+      "floors": 0,
+      "approvalRequired": 1,
+      "constructionCost": 8000,
+      "constructionMonths": 1,
+      "operatingExpense": 0,
+      "residentialUnits": 0,
+      "retailUnits": 0,
+      "parkingCapacity": 0,
+      "parkingDemand": 0,
+      "appealModifier": 0,
+      "roadAccessRequired": false,
+      "isAccessPath": true,
+      "enabledInMvp": true
     }
   ],
   "warning": "All values are starting balance assumptions and must remain configurable."

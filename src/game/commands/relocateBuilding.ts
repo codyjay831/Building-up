@@ -36,7 +36,7 @@ export function relocateBuilding(
     };
   }
 
-  if (!canRelocateBuilding(state, building)) {
+  if (!canRelocateBuilding(state, config, building)) {
     return {
       ok: false,
       error: commandFailure(

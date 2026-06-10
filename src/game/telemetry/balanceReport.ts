@@ -34,9 +34,7 @@ function evaluateViableOpenings(runs: readonly RunTelemetry[]): BalanceFinding[]
   const openingRuns = runs.filter((run) =>
     OPENING_STRATEGIES.includes(run.strategy as (typeof OPENING_STRATEGIES)[number]),
   );
-  const viable = openingRuns.filter(
-    (run) => run.finalStatus !== 'lost' && run.monthsPlayed >= 12,
-  );
+  const viable = openingRuns.filter((run) => run.finalStatus !== 'lost' && run.monthsPlayed >= 12);
   const uniqueFirstChoices = new Set(
     viable
       .map((run) => run.firstBuildingChoice)
@@ -221,7 +219,9 @@ function buildRecommendations(findings: readonly BalanceFinding[]): readonly str
   return recommendations;
 }
 
-export function buildBalanceAdjustmentReport(runs: readonly RunTelemetry[]): BalanceAdjustmentReport {
+export function buildBalanceAdjustmentReport(
+  runs: readonly RunTelemetry[],
+): BalanceAdjustmentReport {
   const findings: BalanceFinding[] = [
     ...evaluateViableOpenings(runs),
     evaluateApprovalTiming(runs),

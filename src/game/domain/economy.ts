@@ -103,6 +103,21 @@ function calculateBuildingOperatingExpense(
   };
 }
 
+export function getBuildingEconomyPreview(
+  building: Readonly<BuildingInstance>,
+  definition: Readonly<BuildingDefinition>,
+  balance: Readonly<BalanceAssumptions>,
+): { rent: BuildingRentBreakdown; expense: BuildingExpenseBreakdown } | null {
+  if (!isActiveEconomyBuilding(building)) {
+    return null;
+  }
+
+  return {
+    rent: calculateBuildingRent(building, definition, balance),
+    expense: calculateBuildingOperatingExpense(building, definition, balance),
+  };
+}
+
 export function calculateMonthlyEconomy(
   state: Readonly<GameState>,
   config: Readonly<GameConfig>,

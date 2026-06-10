@@ -3,7 +3,9 @@ import { z } from 'zod';
 import { SCHEMA_VERSION } from '@/game/domain/types';
 import type { GameState } from '@/game/domain/types';
 
-export const CURRENT_SAVE_FORMAT_VERSION = 2;
+/** Must stay in sync with GameState in types.ts — enforced by schemaParity.test.ts. */
+
+export const CURRENT_SAVE_FORMAT_VERSION = 3;
 export const MAX_IMPORT_BYTES = 2 * 1024 * 1024;
 
 const tileCoordSchema = z.object({
@@ -42,7 +44,7 @@ const buildingInstanceSchema = z.object({
 const lotStateSchema = z.object({
   width: z.number().int().positive(),
   height: z.number().int().positive(),
-  accessTiles: z.array(tileCoordSchema),
+  drivewayTiles: z.array(tileCoordSchema),
   accessParkingCapacity: z.number().int().nonnegative(),
 });
 
@@ -66,6 +68,8 @@ const debtStateSchema = z.object({
   monthlyPayment: z.number().int().nonnegative(),
   projectId: z.string().min(1).optional(),
   paymentsActive: z.boolean(),
+  disbursedPrincipal: z.number().int().nonnegative(),
+  annualInterestRate: z.number().nonnegative(),
 });
 
 const constructionProjectSchema = z.object({
@@ -78,7 +82,7 @@ const constructionProjectSchema = z.object({
   monthsRemaining: z.number().int().nonnegative(),
   totalCost: z.number().int().nonnegative(),
   depositPaid: z.number().int().nonnegative(),
-  monthlyDraws: z.array(z.number().int().nonnegative()),
+  buildDurationMonths: z.number().int().nonnegative(),
   amountSpent: z.number().int().nonnegative(),
   financedWithLoan: z.boolean(),
   loanDebtId: z.string().min(1).optional(),
@@ -97,6 +101,7 @@ const ledgerLineSchema = z.object({
     'rent_retail',
     'operating_expense',
     'construction_draw',
+    'construction_loan_interest',
     'project_deposit',
     'project_refund',
     'renovation_cost',
@@ -179,8 +184,8 @@ export const gameStateSchema = z
       }
     };
 
-    for (const [index, tile] of state.lot.accessTiles.entries()) {
-      validateTile(tile, ['lot', 'accessTiles', index]);
+    for (const [index, tile] of state.lot.drivewayTiles.entries()) {
+      validateTile(tile, ['lot', 'drivewayTiles', index]);
     }
 
     for (const [buildingIndex, building] of state.buildings.entries()) {

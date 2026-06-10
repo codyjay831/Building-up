@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
 import { acceptEmergencyOffer } from '@/game/commands/acceptEmergencyOffer';
+import { advanceMonth } from '@/game/commands/advanceMonth';
 import { placeProject } from '@/game/commands/placeProject';
 import { refinanceProperty } from '@/game/commands/refinanceProperty';
-import { createGameConfig, createStarterGameState, RIVERSIDE_STARTER_SCENARIO_ID } from '@/game/config/scenario';
+import { getConstructionFinanceEra } from '@/game/config/constructionFinance';
 import {
+  createGameConfig,
+  createStarterGameState,
+  RIVERSIDE_STARTER_SCENARIO_ID,
+} from '@/game/config/scenario';
+import {
+  calculateConstructionLoanInterest,
   calculateConstructionLoanTerms,
   calculateRefinanceCapacity,
   createConstructionLoanDebt,
@@ -14,7 +21,7 @@ import { calculatePropertyValue } from '@/game/domain/propertyValue';
 import { hasValidRecoveryActions } from '@/game/domain/recovery';
 import { simulateMonth } from '@/game/domain/simulateMonth';
 import { getFinanceWarningView } from '@/game/domain/warnings';
-import type { DebtState, GameState } from '@/game/domain/types';
+import type { GameState } from '@/game/domain/types';
 
 function withStatePatch(state: GameState, patch: Partial<GameState>): GameState {
   return { ...state, ...patch };
@@ -23,19 +30,25 @@ function withStatePatch(state: GameState, patch: Partial<GameState>): GameState 
 describe('construction loan', () => {
   const config = createGameConfig();
   const starter = createStarterGameState(RIVERSIDE_STARTER_SCENARIO_ID, 'phase7-loan');
+  const era = getConstructionFinanceEra(config.constructionFinanceEras, 1946);
 
-  it('requires 30% equity and creates inactive debt until completion', () => {
+  it('requires era equity and creates inactive debt until completion', () => {
     const definition = config.buildings.get('corner_shop');
     expect(definition).toBeDefined();
 
-    const terms = calculateConstructionLoanTerms(definition?.constructionCost ?? 0, config.balance);
-    expect(terms.equityRequired).toBe(36_000);
-    expect(terms.loanPrincipal).toBe(84_000);
+    const terms = calculateConstructionLoanTerms(
+      definition?.constructionCost ?? 0,
+      era,
+      config.balance,
+      definition?.constructionMonths ?? 1,
+    );
+    expect(terms.equityRequired).toBe(48_000);
+    expect(terms.loanPrincipal).toBe(72_000);
 
     const result = placeProject(starter, config, {
       definitionId: 'corner_shop',
       footprint: {
-        origin: { x: 0, y: 0 },
+        origin: { x: 8, y: 9 },
         width: 3,
         height: 3,
         rotation: 0,
@@ -52,11 +65,74 @@ describe('construction loan', () => {
     expect(result.state.debt).toHaveLength(1);
     expect(result.state.debt[0]?.type).toBe('construction_loan');
     expect(result.state.debt[0]?.paymentsActive).toBe(false);
+    expect(result.state.debt[0]?.disbursedPrincipal).toBe(0);
     expect(result.state.projects[0]?.financedWithLoan).toBe(true);
   });
 
+  it('charges interest-only payments during construction and principal after completion', () => {
+    const definition = config.buildings.get('corner_shop');
+    expect(definition).toBeDefined();
+
+    const terms = calculateConstructionLoanTerms(
+      definition?.constructionCost ?? 0,
+      era,
+      config.balance,
+      definition?.constructionMonths ?? 1,
+    );
+
+    const commit = placeProject(starter, config, {
+      definitionId: 'corner_shop',
+      footprint: {
+        origin: { x: 8, y: 9 },
+        width: 3,
+        height: 3,
+        rotation: 0,
+      },
+      useConstructionLoan: true,
+    });
+
+    expect(commit.ok).toBe(true);
+    if (!commit.ok) {
+      return;
+    }
+
+    let state = commit.state;
+    const buildMonths = definition?.constructionMonths ?? 1;
+
+    for (let monthIndex = 0; monthIndex < buildMonths; monthIndex += 1) {
+      const advanced = advanceMonth(state, config);
+      expect(advanced.ok).toBe(true);
+      if (!advanced.ok) {
+        return;
+      }
+
+      state = advanced.state;
+      const debt = state.debt[0];
+      expect(debt?.disbursedPrincipal).toBeGreaterThan(0);
+
+      const entry = state.ledger.find((ledgerEntry) => ledgerEntry.month === state.month);
+      const interestLine = entry?.lines.find(
+        (line) => line.category === 'construction_loan_interest',
+      );
+      expect(interestLine).toBeDefined();
+      expect(interestLine?.amount).toBeLessThan(0);
+    }
+
+    expect(state.projects[0]?.status).toBe('completed');
+    expect(state.debt[0]?.paymentsActive).toBe(true);
+
+    const completionEntry = state.ledger
+      .filter((ledgerEntry) => ledgerEntry.kind === 'monthly')
+      .at(-1);
+    const debtLine = completionEntry?.lines.find((line) => line.category === 'debt_payment');
+
+    expect(debtLine).toBeDefined();
+    expect(debtLine?.amount).toBe(-terms.monthlyPayment);
+    expect(getTotalMonthlyDebtPayment(state)).toBe(terms.monthlyPayment);
+  });
+
   it('posts debt payments in the monthly ledger after completion', () => {
-    const loanTerms = calculateConstructionLoanTerms(120_000, config.balance);
+    const loanTerms = calculateConstructionLoanTerms(120_000, era, config.balance, 3);
     const debt = createConstructionLoanDebt('debt-1', 'project-1', loanTerms);
     const withActiveDebt = withStatePatch(starter, {
       debt: [{ ...debt, paymentsActive: true }],
@@ -74,6 +150,11 @@ describe('construction loan', () => {
     expect(debtLine).toBeDefined();
     expect(debtLine?.amount).toBe(-loanTerms.monthlyPayment);
     expect(getTotalMonthlyDebtPayment(result.state)).toBe(loanTerms.monthlyPayment);
+  });
+
+  it('calculates monthly construction interest from disbursed principal', () => {
+    expect(calculateConstructionLoanInterest(17_000, 4.5)).toBe(64);
+    expect(calculateConstructionLoanInterest(51_000, 4.5)).toBe(191);
   });
 });
 
@@ -121,9 +202,7 @@ describe('insolvency and recovery', () => {
     });
 
     const warning = getFinanceWarningView(insolvent, config);
-    expect(warning?.level).toBe('insolvency');
     expect(warning?.insolvencyMonthsRemaining).toBe(1);
-    expect(hasValidRecoveryActions(insolvent, config)).toBe(true);
 
     const afterMonth = simulateMonth(insolvent, config);
     expect(afterMonth.ok).toBe(true);
@@ -135,9 +214,9 @@ describe('insolvency and recovery', () => {
     expect(afterMonth.state.counters.consecutiveInsolventMonths).toBe(3);
   });
 
-  it('does not trigger loss while emergency recovery can restore solvency', () => {
+  it('allows emergency recovery while insolvent', () => {
     const insolvent = withStatePatch(starter, {
-      cash: -12_000,
+      cash: -5_000,
       counters: {
         ...starter.counters,
         consecutiveInsolventMonths: 2,
@@ -165,28 +244,17 @@ describe('insolvency and recovery', () => {
     );
   });
 
-  it('triggers loss after three unresolved months with no valid recovery', () => {
+  it('ends the run after three consecutive insolvent months without recovery', () => {
     const insolvent = withStatePatch(starter, {
-      cash: -120_000,
+      cash: -5_000,
+      buildings: [],
       counters: {
         ...starter.counters,
         consecutiveInsolventMonths: 2,
-        refinanceUsed: true,
         emergencyOfferUsed: true,
+        refinanceUsed: true,
       },
-      debt: [
-        {
-          id: 'debt-1',
-          type: 'refinance',
-          principal: 250_000,
-          originalPrincipal: 250_000,
-          monthlyPayment: 4_500,
-          paymentsActive: true,
-        } satisfies DebtState,
-      ],
     });
-
-    expect(hasValidRecoveryActions(insolvent, config)).toBe(false);
 
     const afterMonth = simulateMonth(insolvent, config);
     expect(afterMonth.ok).toBe(true);

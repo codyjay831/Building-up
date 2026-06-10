@@ -19,6 +19,8 @@ export function SettingsPanel() {
   const importSaveFile = useGameStore((store) => store.importSaveFile);
   const newGame = useGameStore((store) => store.newGame);
   const resetOnboarding = useGameStore((store) => store.resetOnboarding);
+  const setGuideEnabled = useGameStore((store) => store.setGuideEnabled);
+  const guideDisabled = useGameStore((store) => store.onboarding.guideDisabled);
   const persistence = useGameStore((store) => store.persistence);
   const importInputRef = useRef<HTMLInputElement>(null);
 
@@ -176,6 +178,16 @@ export function SettingsPanel() {
               Reset tutorial
             </button>
           </div>
+          <label className={styles.checkboxLabel} data-testid="guide-enabled-toggle">
+            <input
+              type="checkbox"
+              checked={!guideDisabled}
+              onChange={(event) => {
+                setGuideEnabled(event.target.checked);
+              }}
+            />
+            Show guided objectives
+          </label>
         </section>
 
         <section className={styles.section}>

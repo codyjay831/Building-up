@@ -2,6 +2,7 @@ import { getBuildingDefinition } from '@/game/config/buildings';
 import { appendTransactionLedgerEntry, createLedgerLine } from '@/game/domain/ledger';
 import { hasSufficientCash } from '@/game/domain/money';
 import { canSellOrDemolishBuilding, getBuildingByIdOrThrow } from '@/game/domain/progression';
+import { validateBuildingRemoval } from '@/game/domain/roadAccessValidation';
 import { calculateBuildingSaleProceeds, calculateDemolitionCost } from '@/game/domain/valuation';
 import type { CommandResult, CommandRuleFailure, GameConfig, GameState } from '@/game/domain/types';
 
@@ -42,6 +43,13 @@ export function demolishBuilding(
   }
 
   const definition = getBuildingDefinition(config.buildings, building.definitionId);
+
+  const removalValidation = validateBuildingRemoval(state, config, command.buildingId);
+
+  if (!removalValidation.ok) {
+    return { ok: false, error: removalValidation };
+  }
+
   const cost = calculateDemolitionCost(definition, config.balance);
 
   if (!hasSufficientCash(state.cash, cost)) {
@@ -102,6 +110,13 @@ export function sellBuilding(
   }
 
   const definition = getBuildingDefinition(config.buildings, building.definitionId);
+
+  const removalValidation = validateBuildingRemoval(state, config, command.buildingId);
+
+  if (!removalValidation.ok) {
+    return { ok: false, error: removalValidation };
+  }
+
   const proceeds = calculateBuildingSaleProceeds(building, definition, config.balance);
 
   const entryId = `ledger-${String(state.month)}-${String(state.ledger.length + 1)}`;

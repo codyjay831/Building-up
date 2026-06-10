@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
 import { advanceMonth } from '@/game/commands/advanceMonth';
-import { createGameConfig, createStarterGameState, RIVERSIDE_STARTER_SCENARIO_ID } from '@/game/config/scenario';
+import {
+  createGameConfig,
+  createStarterGameState,
+  RIVERSIDE_STARTER_SCENARIO_ID,
+} from '@/game/config/scenario';
 import { calculateAppeal } from '@/game/domain/appeal';
 import { applyConditionDecay } from '@/game/domain/condition';
-import { calculateMonthlyEconomy } from '@/game/domain/economy';
+import { calculateMonthlyEconomy, getBuildingEconomyPreview } from '@/game/domain/economy';
+import { getBuildingDefinition } from '@/game/config/buildings';
 import { reconcileLedgerEntry } from '@/game/domain/ledger';
 import { calculatePropertyParking } from '@/game/domain/parking';
 import { simulateMonth } from '@/game/domain/simulateMonth';
@@ -55,14 +60,44 @@ describe('monthly economy', () => {
     expect(economy.rentLines).toHaveLength(1);
     expect(economy.expenseLines).toHaveLength(1);
   });
+
+  it('matches getBuildingEconomyPreview to monthly economy lines for a single building', () => {
+    const building = state.buildings[0];
+    expect(building).toBeDefined();
+
+    const definition = getBuildingDefinition(config.buildings, building?.definitionId ?? '');
+    const preview = getBuildingEconomyPreview(building as NonNullable<typeof building>, definition, config.balance);
+    const economy = calculateMonthlyEconomy(state, config, config.balance, 'parity-test');
+
+    expect(preview).not.toBeNull();
+    if (!preview || !building) {
+      return;
+    }
+
+    const buildingRent = economy.rentLines
+      .filter((line) => line.buildingId === building.id)
+      .reduce((total, line) => total + line.amount, 0);
+    const buildingExpense = economy.expenseLines
+      .filter((line) => line.buildingId === building.id)
+      .reduce((total, line) => total - line.amount, 0);
+
+    expect(preview.rent.totalRent).toBe(buildingRent);
+    expect(preview.expense.totalExpense).toBe(buildingExpense);
+  });
 });
 
 describe('simulateMonth pipeline', () => {
   const config = createGameConfig();
 
   it('produces deterministic monthly results for the same seed', () => {
-    const first = simulateMonth(createStarterGameState(RIVERSIDE_STARTER_SCENARIO_ID, 'phase4-seed'), config);
-    const second = simulateMonth(createStarterGameState(RIVERSIDE_STARTER_SCENARIO_ID, 'phase4-seed'), config);
+    const first = simulateMonth(
+      createStarterGameState(RIVERSIDE_STARTER_SCENARIO_ID, 'phase4-seed'),
+      config,
+    );
+    const second = simulateMonth(
+      createStarterGameState(RIVERSIDE_STARTER_SCENARIO_ID, 'phase4-seed'),
+      config,
+    );
 
     expect(first.ok).toBe(true);
     expect(second.ok).toBe(true);

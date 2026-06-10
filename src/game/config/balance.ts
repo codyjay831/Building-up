@@ -62,6 +62,7 @@ const CSV_KEY_MAP = {
   emergency_investor_offer_amount: 'emergencyInvestorOfferAmount',
   insolvency_loss_months: 'insolvencyLossMonths',
   warning_orange_reserve_months: 'warningOrangeReserveMonths',
+  neighborhood_fill_win_net_cash_flow: 'neighborhoodFillWinNetCashFlow',
 } as const satisfies Record<string, keyof BalanceAssumptions>;
 
 function isBalanceCsvKey(key: string): key is keyof typeof CSV_KEY_MAP {

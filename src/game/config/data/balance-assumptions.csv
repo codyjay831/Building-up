@@ -13,6 +13,7 @@ win_net_cash_flow,12000,USD/month,assumption,Three consecutive months
 win_occupancy,85,percent,assumption,Combined occupancy
 win_appeal,65,score 0-100,assumption,Three consecutive months
 win_cash_reserve,60000,USD,assumption,Three consecutive months
+neighborhood_fill_win_net_cash_flow,8000,USD/month,assumption,Suburb scenario win threshold
 discount_rent_multiplier,0.85,multiplier,assumption,Better leasing
 premium_rent_multiplier,1.18,multiplier,assumption,Slower leasing
 discount_leasing_modifier,15,score,assumption,Normalized later

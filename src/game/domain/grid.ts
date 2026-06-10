@@ -1,6 +1,4 @@
 import {
-  LOT_HEIGHT,
-  LOT_WIDTH,
   type BuildingInstance,
   type LotState,
   type PlacedFootprint,
@@ -62,8 +60,13 @@ export function footprintWithinLot(footprint: PlacedFootprint, lot: LotState): b
   return getFootprintTiles(footprint).every((tile) => isTileInLot(tile, lot));
 }
 
+export function isDrivewayTile(coord: TileCoord, lot: LotState): boolean {
+  return lot.drivewayTiles.some((drivewayTile) => coordsEqual(drivewayTile, coord));
+}
+
+/** @deprecated Use isDrivewayTile */
 export function isAccessTile(coord: TileCoord, lot: LotState): boolean {
-  return lot.accessTiles.some((accessTile) => coordsEqual(accessTile, coord));
+  return isDrivewayTile(coord, lot);
 }
 
 export function getOccupiedTileKeys(
@@ -117,14 +120,3 @@ export function getSouthBoundaryTiles(lot: LotState): TileCoord[] {
 
   return tiles;
 }
-
-export function createDefaultLot(): LotState {
-  return {
-    width: LOT_WIDTH,
-    height: LOT_HEIGHT,
-    accessTiles: [],
-    accessParkingCapacity: 0,
-  };
-}
-
-export { LOT_HEIGHT, LOT_WIDTH };

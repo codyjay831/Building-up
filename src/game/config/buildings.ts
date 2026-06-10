@@ -12,7 +12,7 @@ const footprintSchema = z.object({
 const buildingDefinitionSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
-  category: z.enum(['residential', 'retail', 'mixed', 'parking', 'amenity']),
+  category: z.enum(['residential', 'retail', 'mixed', 'parking', 'amenity', 'infrastructure']),
   footprint: footprintSchema,
   floors: z.number().int().nonnegative(),
   approvalRequired: z.number().int().positive(),
@@ -25,6 +25,7 @@ const buildingDefinitionSchema = z.object({
   parkingDemand: z.number().int().nonnegative(),
   appealModifier: z.number().int(),
   roadAccessRequired: z.boolean(),
+  isAccessPath: z.boolean().optional(),
   enabledInMvp: z.boolean(),
   baseRentPerUnit: z.number().int().nonnegative().optional(),
   baseResidentialRentPerUnit: z.number().int().nonnegative().optional(),

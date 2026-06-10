@@ -1,20 +1,22 @@
 import { buildProjectForecast } from '@/game/domain/construction';
 import { formatMoney } from '@/game/domain/money';
-import { getConstructionLoanForecastView } from '@/game/selectors/financeSelectors';
-import type { GameConfig, GameState, ProjectForecast } from '@/game/domain/types';
+import type { GameConfig, GameState } from '@/game/domain/types';
 import type { PlacementPreview } from '@/game/store/storeTypes';
 import { buildPreviewFootprint } from '@/game/selectors/placementSelectors';
-import { getBuildingDefinition } from '@/game/config/buildings';
 
 export interface ProjectForecastView {
-  readonly forecast: ProjectForecast;
+  readonly forecast: ReturnType<typeof buildProjectForecast>;
   readonly totalCostLabel: string;
   readonly cashDueNowLabel: string;
-  readonly monthlyDrawsLabel: string;
+  readonly cashBuildNoteLabel: string;
   readonly completionMonthLabel: string;
   readonly buildDurationLabel: string;
   readonly parkingLabel: string;
-  readonly constructionLoan: ReturnType<typeof getConstructionLoanForecastView>;
+  readonly loanEquityRequiredLabel: string;
+  readonly loanPrincipalLabel: string;
+  readonly loanInterestRangeLabel: string;
+  readonly loanPaymentAfterBuildLabel: string;
+  readonly loanEligible: boolean;
 }
 
 export function getProjectForecastForPreview(
@@ -24,17 +26,20 @@ export function getProjectForecastForPreview(
 ): ProjectForecastView {
   const footprint = buildPreviewFootprint(preview, config);
   const forecast = buildProjectForecast(state, config, preview.definitionId, footprint);
-  const definition = getBuildingDefinition(config.buildings, preview.definitionId);
-  const constructionLoan = getConstructionLoanForecastView(state, config, definition);
+  const loan = forecast.constructionLoan;
 
   return {
     forecast,
     totalCostLabel: formatMoney(forecast.totalCost),
     cashDueNowLabel: formatMoney(forecast.cashDueNow),
-    monthlyDrawsLabel: forecast.monthlyDraws.map((draw) => formatMoney(draw)).join(', '),
+    cashBuildNoteLabel: 'No payments during construction',
     completionMonthLabel: `Month ${String(forecast.completionMonth)}`,
     buildDurationLabel: `${String(forecast.buildDurationMonths)} months`,
     parkingLabel: `${String(forecast.parkingAfterBuild.capacity)} capacity / ${String(forecast.parkingAfterBuild.demand)} demand`,
-    constructionLoan,
+    loanEligible: loan.eligible,
+    loanEquityRequiredLabel: formatMoney(loan.equityRequired),
+    loanPrincipalLabel: formatMoney(loan.loanPrincipal),
+    loanInterestRangeLabel: `${formatMoney(loan.estimatedFirstMonthInterest)} → ${formatMoney(loan.estimatedPeakMonthInterest)}/mo`,
+    loanPaymentAfterBuildLabel: `${formatMoney(loan.monthlyPaymentAfterCompletion)}/mo`,
   };
 }

@@ -102,7 +102,7 @@ export function canSellOrDemolishBuilding(
 
   const definition = getBuildingDefinition(config.buildings, building.definitionId);
 
-  if (definition.category === 'parking' || definition.category === 'amenity') {
+  if (definition.category === 'parking' || definition.category === 'amenity' || definition.category === 'infrastructure') {
     return true;
   }
 
@@ -111,13 +111,17 @@ export function canSellOrDemolishBuilding(
 
 export function canRelocateBuilding(
   state: Readonly<GameState>,
+  config: Readonly<GameConfig>,
   building: Readonly<BuildingInstance>,
 ): boolean {
   if (state.status !== 'active') {
     return false;
   }
 
-  if (building.lifecycleState === 'under_construction' || building.lifecycleState === 'renovating') {
+  if (
+    building.lifecycleState === 'under_construction' ||
+    building.lifecycleState === 'renovating'
+  ) {
     return false;
   }
 
@@ -126,6 +130,12 @@ export function canRelocateBuilding(
   }
 
   if (hasActiveProjectForBuilding(state, building.id)) {
+    return false;
+  }
+
+  const definition = config.buildings.get(building.definitionId);
+
+  if (definition?.isAccessPath) {
     return false;
   }
 

@@ -1,7 +1,8 @@
+import { getBuildingDefinition } from '@/game/config/buildings';
 import {
   getFootprintTiles,
   getSouthBoundaryTiles,
-  isAccessTile,
+  isDrivewayTile,
   isTileInLot,
   isTileOccupied,
   tileKey,
@@ -9,6 +10,7 @@ import {
 import type {
   BuildingDefinition,
   BuildingInstance,
+  GameConfig,
   LotState,
   PlacedFootprint,
   TileCoord,
@@ -21,60 +23,60 @@ const CARDINAL_OFFSETS: readonly TileCoord[] = [
   { x: -1, y: 0 },
 ];
 
-function isPassableTile(
-  coord: TileCoord,
+export function getRoadNetworkTileKeys(
   lot: LotState,
-  occupiedTileKeys: ReadonlySet<string>,
-): boolean {
-  if (!isTileInLot(coord, lot)) {
-    return false;
+  buildings: readonly BuildingInstance[],
+  config: Readonly<GameConfig>,
+): ReadonlySet<string> {
+  const networkKeys = new Set<string>();
+
+  for (const tile of getSouthBoundaryTiles(lot)) {
+    networkKeys.add(tileKey(tile));
   }
 
-  if (occupiedTileKeys.has(tileKey(coord))) {
-    return false;
+  for (const tile of lot.drivewayTiles) {
+    networkKeys.add(tileKey(tile));
   }
 
-  return true;
+  for (const building of buildings) {
+    const definition = config.buildings.get(building.definitionId);
+
+    if (!definition?.isAccessPath || building.lifecycleState !== 'operating') {
+      continue;
+    }
+
+    for (const tile of getFootprintTiles(building.footprint)) {
+      networkKeys.add(tileKey(tile));
+    }
+  }
+
+  return networkKeys;
 }
 
 export function computeRoadAccessibleTileKeys(
   lot: LotState,
   buildings: readonly BuildingInstance[],
-  projects: readonly { footprint: PlacedFootprint }[] = [],
+  config: Readonly<GameConfig>,
+  _projects: readonly { footprint: PlacedFootprint }[] = [],
 ): ReadonlySet<string> {
-  const occupiedTileKeys = new Set<string>();
-
-  for (const building of buildings) {
-    for (const tile of getFootprintTiles(building.footprint)) {
-      occupiedTileKeys.add(tileKey(tile));
-    }
-  }
-
-  for (const project of projects) {
-    for (const tile of getFootprintTiles(project.footprint)) {
-      occupiedTileKeys.add(tileKey(tile));
-    }
-  }
-
-  const accessible = new Set<string>();
+  const networkKeys = getRoadNetworkTileKeys(lot, buildings, config);
+  const reachable = new Set<string>();
   const queue: TileCoord[] = [];
 
   for (const southTile of getSouthBoundaryTiles(lot)) {
-    if (!isPassableTile(southTile, lot, occupiedTileKeys) && !isAccessTile(southTile, lot)) {
-      continue;
-    }
-
     const key = tileKey(southTile);
-    if (accessible.has(key)) {
+
+    if (!networkKeys.has(key) || reachable.has(key)) {
       continue;
     }
 
-    accessible.add(key);
+    reachable.add(key);
     queue.push(southTile);
   }
 
   while (queue.length > 0) {
     const current = queue.shift();
+
     if (!current) {
       break;
     }
@@ -90,23 +92,17 @@ export function computeRoadAccessibleTileKeys(
       }
 
       const neighborKey = tileKey(neighbor);
-      if (accessible.has(neighborKey)) {
+
+      if (reachable.has(neighborKey) || !networkKeys.has(neighborKey)) {
         continue;
       }
 
-      const passable =
-        isPassableTile(neighbor, lot, occupiedTileKeys) || isAccessTile(neighbor, lot);
-
-      if (!passable) {
-        continue;
-      }
-
-      accessible.add(neighborKey);
+      reachable.add(neighborKey);
       queue.push(neighbor);
     }
   }
 
-  return accessible;
+  return reachable;
 }
 
 export function hasRoadAccess(
@@ -114,24 +110,29 @@ export function hasRoadAccess(
   definition: BuildingDefinition,
   lot: LotState,
   buildings: readonly BuildingInstance[],
+  config: Readonly<GameConfig>,
   projects: readonly { footprint: PlacedFootprint }[] = [],
 ): boolean {
   if (!definition.roadAccessRequired) {
     return true;
   }
 
-  const accessibleTileKeys = computeRoadAccessibleTileKeys(lot, buildings, projects);
+  const accessibleTileKeys = computeRoadAccessibleTileKeys(lot, buildings, config, projects);
   const footprintTiles = getFootprintTiles(footprint);
 
-  return footprintTiles.some((tile) =>
-    CARDINAL_OFFSETS.some((offset) => {
+  return footprintTiles.some((tile) => {
+    if (accessibleTileKeys.has(tileKey(tile))) {
+      return true;
+    }
+
+    return CARDINAL_OFFSETS.some((offset) => {
       const neighbor: TileCoord = {
         x: tile.x + offset.x,
         y: tile.y + offset.y,
       };
       return accessibleTileKeys.has(tileKey(neighbor));
-    }),
-  );
+    });
+  });
 }
 
 export function buildingHasRoadAccess(
@@ -139,10 +140,11 @@ export function buildingHasRoadAccess(
   definition: BuildingDefinition,
   lot: LotState,
   buildings: readonly BuildingInstance[],
+  config: Readonly<GameConfig>,
   projects: readonly { footprint: PlacedFootprint }[] = [],
 ): boolean {
   const otherBuildings = buildings.filter((candidate) => candidate.id !== building.id);
-  return hasRoadAccess(building.footprint, definition, lot, otherBuildings, projects);
+  return hasRoadAccess(building.footprint, definition, lot, otherBuildings, config, projects);
 }
 
 export function isTileOccupiedForPlacement(
@@ -151,9 +153,20 @@ export function isTileOccupiedForPlacement(
   buildings: readonly BuildingInstance[],
   projects: readonly { footprint: PlacedFootprint }[] = [],
 ): boolean {
-  if (isAccessTile(coord, lot)) {
+  if (isDrivewayTile(coord, lot)) {
     return true;
   }
 
   return isTileOccupied(coord, buildings, projects);
+}
+
+export function buildingDefinitionHasRoadAccess(
+  building: BuildingInstance,
+  config: Readonly<GameConfig>,
+  lot: LotState,
+  buildings: readonly BuildingInstance[],
+  projects: readonly { footprint: PlacedFootprint }[] = [],
+): boolean {
+  const definition = getBuildingDefinition(config.buildings, building.definitionId);
+  return buildingHasRoadAccess(building, definition, lot, buildings, config, projects);
 }

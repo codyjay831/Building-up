@@ -2,13 +2,21 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { advanceMonth } from '@/game/commands/advanceMonth';
 import { placeProject } from '@/game/commands/placeProject';
-import { createGameConfig, createStarterGameState, RIVERSIDE_STARTER_SCENARIO_ID } from '@/game/config/scenario';
+import {
+  createGameConfig,
+  createStarterGameState,
+  RIVERSIDE_STARTER_SCENARIO_ID,
+} from '@/game/config/scenario';
+import { migrateSaveEnvelopePayload } from '@/game/persistence/migrations';
 import {
   deriveCompletedObjectiveIds,
   getActiveObjectiveId,
   isTutorialComplete,
   type OnboardingContext,
 } from '@/game/onboarding/objectives';
+import { getOnboardingView } from '@/game/onboarding/onboardingSelectors';
+import { createInitialOnboardingProgress } from '@/game/onboarding/objectives';
+import { createInitialUiState } from '@/game/store/storeTypes';
 import { exportSaveJson, importSaveJson } from '@/game/persistence/exportImport';
 import {
   autosaveGameState,
@@ -16,7 +24,7 @@ import {
   loadSaveSlot,
   saveGameState,
 } from '@/game/persistence/storage';
-import { saveEnvelopeSchema } from '@/game/persistence/saveSchema';
+import { saveEnvelopeSchema, gameStateSchema } from '@/game/persistence/saveSchema';
 import type { GameState } from '@/game/domain/types';
 
 class MemoryStorage {
@@ -82,7 +90,9 @@ describe('save persistence', () => {
       return;
     }
 
-    expect(autosaveLoaded.envelope.gameState).toEqual(sourceState);
+    expect(gameStateSchema.parse(autosaveLoaded.envelope.gameState)).toEqual(
+      gameStateSchema.parse(JSON.parse(JSON.stringify(sourceState))),
+    );
 
     const manualSaveResult = saveGameState(2, sourceState);
     expect(manualSaveResult.ok).toBe(true);
@@ -93,7 +103,9 @@ describe('save persistence', () => {
       return;
     }
 
-    expect(manualLoaded.envelope.gameState).toEqual(sourceState);
+    expect(gameStateSchema.parse(manualLoaded.envelope.gameState)).toEqual(
+      gameStateSchema.parse(JSON.parse(JSON.stringify(sourceState))),
+    );
   });
 
   it('exports and imports JSON with Zod validation', () => {
@@ -142,6 +154,19 @@ describe('save persistence', () => {
     expect(loaded.ok).toBe(false);
   });
 
+  it('migrates formatVersion 1 envelopes to the current save format', () => {
+    const legacyEnvelope = {
+      formatVersion: 1,
+      savedAt: new Date().toISOString(),
+      gameState: starter,
+    };
+    const migrated = migrateSaveEnvelopePayload(legacyEnvelope);
+    const parsed = saveEnvelopeSchema.parse(migrated);
+
+    expect(parsed.formatVersion).toBe(3);
+    expect(parsed.gameState).toEqual(starter);
+  });
+
   it('preserves counters, ledger, and debt through serialization', () => {
     const mutated: GameState = {
       ...starter,
@@ -170,6 +195,8 @@ describe('save persistence', () => {
           originalPrincipal: 50_000,
           monthlyPayment: 450,
           paymentsActive: true,
+          disbursedPrincipal: 0,
+          annualInterestRate: 0,
         },
       ],
     };
@@ -187,16 +214,21 @@ describe('save persistence', () => {
 });
 
 describe('guided onboarding objectives', () => {
-  it('tracks the first five objectives in order', () => {
+  const riversideTutorialId = 'existing_house';
+  const suburbTutorialId = 'suburb_house';
+
+  it('tracks the first five objectives in order for riverside', () => {
     const baseContext: OnboardingContext = {
       selectedBuildingId: null,
       selectedBuildingDefinitionId: null,
+      tutorialBuildingDefinitionId: riversideTutorialId,
       month: 1,
       hasMonthlyReport: false,
       reportDrawerOpen: false,
       keepDecisionMade: false,
       reportReadAfterFirstMonth: false,
-      starterHouseRenovated: false,
+      tutorialInspectorOpened: false,
+      tutorialBuildingRenovated: false,
     };
 
     expect(getActiveObjectiveId(deriveCompletedObjectiveIds(baseContext))).toBe('select_house');
@@ -204,14 +236,22 @@ describe('guided onboarding objectives', () => {
     const selectedHouse: OnboardingContext = {
       ...baseContext,
       selectedBuildingId: 'building-1',
-      selectedBuildingDefinitionId: 'existing_house',
+      selectedBuildingDefinitionId: riversideTutorialId,
     };
     let completed = deriveCompletedObjectiveIds(selectedHouse);
+    expect(completed).toEqual(['select_house']);
+    expect(getActiveObjectiveId(completed)).toBe('review_condition');
+
+    const reviewedHouse: OnboardingContext = {
+      ...selectedHouse,
+      tutorialInspectorOpened: true,
+    };
+    completed = deriveCompletedObjectiveIds(reviewedHouse);
     expect(completed).toEqual(['select_house', 'review_condition']);
     expect(getActiveObjectiveId(completed)).toBe('keep_or_renovate');
 
     const keepDecision: OnboardingContext = {
-      ...selectedHouse,
+      ...reviewedHouse,
       keepDecisionMade: true,
     };
     completed = deriveCompletedObjectiveIds(keepDecision);
@@ -235,18 +275,63 @@ describe('guided onboarding objectives', () => {
     expect(isTutorialComplete(completed)).toBe(true);
   });
 
-  it('treats renovation as satisfying the keep-or-renovate objective', () => {
-    const context: OnboardingContext = {
-      selectedBuildingId: 'building-1',
-      selectedBuildingDefinitionId: 'existing_house',
+  it('tracks suburb tutorial progress when a suburb house is selected', () => {
+    const baseContext: OnboardingContext = {
+      selectedBuildingId: null,
+      selectedBuildingDefinitionId: null,
+      tutorialBuildingDefinitionId: suburbTutorialId,
       month: 1,
       hasMonthlyReport: false,
       reportDrawerOpen: false,
       keepDecisionMade: false,
       reportReadAfterFirstMonth: false,
-      starterHouseRenovated: true,
+      tutorialInspectorOpened: false,
+      tutorialBuildingRenovated: false,
+    };
+
+    expect(getActiveObjectiveId(deriveCompletedObjectiveIds(baseContext))).toBe('select_house');
+
+    const selectedHouse: OnboardingContext = {
+      ...baseContext,
+      selectedBuildingId: 'building-3',
+      selectedBuildingDefinitionId: suburbTutorialId,
+    };
+
+    expect(deriveCompletedObjectiveIds(selectedHouse)).toEqual(['select_house']);
+  });
+
+  it('treats renovation as satisfying the keep-or-renovate objective', () => {
+    const context: OnboardingContext = {
+      selectedBuildingId: 'building-1',
+      selectedBuildingDefinitionId: riversideTutorialId,
+      tutorialBuildingDefinitionId: riversideTutorialId,
+      month: 1,
+      hasMonthlyReport: false,
+      reportDrawerOpen: false,
+      keepDecisionMade: false,
+      reportReadAfterFirstMonth: false,
+      tutorialInspectorOpened: true,
+      tutorialBuildingRenovated: true,
     };
 
     expect(deriveCompletedObjectiveIds(context)).toContain('keep_or_renovate');
+  });
+
+  it('hides the guide when guideDisabled is true', () => {
+    const config = createGameConfig();
+    const gameState = createStarterGameState(RIVERSIDE_STARTER_SCENARIO_ID, 'onboarding-view');
+    const progress = {
+      ...createInitialOnboardingProgress(),
+      guideDisabled: true,
+    };
+
+    const view = getOnboardingView(
+      gameState,
+      createInitialUiState(),
+      progress,
+      config,
+    );
+
+    expect(view.showGuide).toBe(false);
   });
 });

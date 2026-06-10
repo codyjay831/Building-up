@@ -77,6 +77,30 @@
   line-height: 1.2;
 }
 
+.statValue[data-tone='projected'] {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.statValue[data-month-tick='true'] {
+  animation: month-tick-pulse 400ms ease-out;
+}
+
+@keyframes month-tick-pulse {
+  0% {
+    transform: scale(1);
+  }
+
+  40% {
+    transform: scale(1.08);
+    color: var(--color-positive);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
 .statValue[data-tone='positive'] {
   color: var(--color-positive);
 }
@@ -150,27 +174,36 @@
   position: relative;
   overflow: hidden;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: stretch;
   min-height: 0;
 }
 
 /* ── Toast banners (float over board) ────────────────────────────── */
 
-.toast {
+.toastStack {
   position: absolute;
   top: var(--space-3);
   left: 50%;
   transform: translateX(-50%);
   z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: min(720px, calc(100% - var(--space-6)));
+  pointer-events: none;
+}
+
+.toast {
   max-width: 660px;
   width: max-content;
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
   line-height: 1.5;
-  pointer-events: none;
-  white-space: nowrap;
+  white-space: normal;
+  text-align: center;
 }
 
 .toast[data-level='yellow'] {
@@ -184,17 +217,25 @@
 }
 
 .toast[data-level='red'],
-.toast[data-level='insolvency'] {
+.toast[data-level='insolvency'],
+.toast[data-level='spiral'] {
   border: 1px solid rgb(248 113 113 / 35%);
   background: rgb(248 113 113 / 12%);
 }
 
+.toastMilestone {
+  max-width: 660px;
+  width: max-content;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  border: 1px solid rgb(56 189 248 / 35%);
+  background: rgb(56 189 248 / 12%);
+  color: var(--color-text);
+}
+
 .toastWin {
-  position: absolute;
-  top: var(--space-3);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 20;
   max-width: 660px;
   width: max-content;
   padding: var(--space-2) var(--space-4);
@@ -203,16 +244,11 @@
   line-height: 1.5;
   border: 1px solid rgb(74 222 128 / 35%);
   background: rgb(74 222 128 / 12%);
-  pointer-events: none;
-  white-space: nowrap;
+  white-space: normal;
+  text-align: center;
 }
 
 .toastLoss {
-  position: absolute;
-  top: var(--space-3);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 20;
   max-width: 660px;
   width: max-content;
   padding: var(--space-2) var(--space-4);
@@ -221,8 +257,72 @@
   line-height: 1.5;
   border: 1px solid rgb(248 113 113 / 35%);
   background: rgb(248 113 113 / 12%);
+  white-space: normal;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.lossDetail {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.statButton {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.statButton:hover .statValue,
+.statButton:hover .statLabel {
+  color: var(--color-accent);
+}
+
+.eventStrip {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 12;
+  padding: var(--space-2) var(--space-4);
+  border: none;
+  border-top: 1px solid var(--color-border);
+  background: rgb(15 23 35 / 88%);
+  backdrop-filter: blur(8px);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.eventStrip:hover {
+  color: var(--color-text);
+  background: rgb(15 23 35 / 96%);
+}
+
+.vacancyLegend {
+  position: absolute;
+  bottom: calc(var(--space-2) + 2rem);
+  left: var(--space-3);
+  z-index: 11;
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: rgb(15 23 35 / 72%);
+  color: var(--color-text-muted);
+  font-size: 0.65rem;
+  line-height: 1.4;
   pointer-events: none;
-  white-space: nowrap;
 }
 
 /* ── Left Build drawer ───────────────────────────────────────────── */

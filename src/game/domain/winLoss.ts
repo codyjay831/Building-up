@@ -1,5 +1,6 @@
+import { getScenarioDefinition } from '@/game/config/scenario';
 import { calculateCombinedOccupancyPercent } from '@/game/domain/leasing';
-import type { BalanceAssumptions, GameConfig, GameState } from '@/game/domain/types';
+import type { BalanceAssumptions, GameConfig, GameState, WinProfile } from '@/game/domain/types';
 
 export interface WinConditionProgress {
   readonly id: string;
@@ -23,6 +24,11 @@ function hasOperatingMixedUse(state: Readonly<GameState>, config: Readonly<GameC
   });
 }
 
+function getWinProfile(state: Readonly<GameState>, config: Readonly<GameConfig>): WinProfile {
+  const scenario = getScenarioDefinition(config.scenarios, state.scenarioId);
+  return scenario.winProfile;
+}
+
 export function checkWinConditionsMet(
   state: Readonly<GameState>,
   config: Readonly<GameConfig>,
@@ -30,6 +36,16 @@ export function checkWinConditionsMet(
   netCashFlow: number,
   occupancyPercent: number,
 ): boolean {
+  const profile = getWinProfile(state, config);
+
+  if (profile === 'neighborhood_fill') {
+    return (
+      state.approval.level >= 2 &&
+      netCashFlow >= balance.neighborhoodFillWinNetCashFlow &&
+      occupancyPercent >= balance.winOccupancy
+    );
+  }
+
   return (
     state.approval.level >= 2 &&
     netCashFlow >= balance.winNetCashFlow &&
@@ -74,16 +90,16 @@ export function applyWinProgress(
   };
 }
 
-export function getWinProgressView(
+function buildMixedUseConditions(
   state: Readonly<GameState>,
   config: Readonly<GameConfig>,
   balance: Readonly<BalanceAssumptions>,
   netCashFlow: number | undefined,
-): WinProgressView {
-  const occupancyPercent = calculateCombinedOccupancyPercent(state, config);
+  occupancyPercent: number,
+): WinConditionProgress[] {
   const resolvedNetCashFlow = netCashFlow ?? 0;
 
-  const conditions: WinConditionProgress[] = [
+  return [
     {
       id: 'approval',
       label: 'Approval Level 2+',
@@ -127,6 +143,54 @@ export function getWinProgressView(
       met: state.cash >= balance.winCashReserve,
     },
   ];
+}
+
+function buildNeighborhoodFillConditions(
+  state: Readonly<GameState>,
+  balance: Readonly<BalanceAssumptions>,
+  netCashFlow: number | undefined,
+  occupancyPercent: number,
+): WinConditionProgress[] {
+  const resolvedNetCashFlow = netCashFlow ?? 0;
+
+  return [
+    {
+      id: 'approval',
+      label: 'Approval Level 2+',
+      currentLabel: `Level ${String(state.approval.level)}`,
+      targetLabel: 'Level 2 or higher',
+      met: state.approval.level >= 2,
+    },
+    {
+      id: 'net_cash_flow',
+      label: 'Monthly net cash flow',
+      currentLabel: netCashFlow === undefined ? '—' : `$${String(resolvedNetCashFlow)}`,
+      targetLabel: `≥ $${String(balance.neighborhoodFillWinNetCashFlow)}/mo`,
+      met: resolvedNetCashFlow >= balance.neighborhoodFillWinNetCashFlow,
+    },
+    {
+      id: 'occupancy',
+      label: 'Combined occupancy',
+      currentLabel: `${String(occupancyPercent)}%`,
+      targetLabel: `≥ ${String(balance.winOccupancy)}%`,
+      met: occupancyPercent >= balance.winOccupancy,
+    },
+  ];
+}
+
+export function getWinProgressView(
+  state: Readonly<GameState>,
+  config: Readonly<GameConfig>,
+  balance: Readonly<BalanceAssumptions>,
+  netCashFlow: number | undefined,
+): WinProgressView {
+  const occupancyPercent = calculateCombinedOccupancyPercent(state, config);
+  const profile = getWinProfile(state, config);
+
+  const conditions =
+    profile === 'neighborhood_fill'
+      ? buildNeighborhoodFillConditions(state, balance, netCashFlow, occupancyPercent)
+      : buildMixedUseConditions(state, config, balance, netCashFlow, occupancyPercent);
 
   return {
     conditions,

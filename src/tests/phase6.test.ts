@@ -3,7 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { placeProject } from '@/game/commands/placeProject';
 import { demolishBuilding, sellBuilding } from '@/game/commands/redevelopBuilding';
 import { renovateBuilding } from '@/game/commands/renovateBuilding';
-import { createGameConfig, createStarterGameState, RIVERSIDE_STARTER_SCENARIO_ID } from '@/game/config/scenario';
+import {
+  createGameConfig,
+  createStarterGameState,
+  RIVERSIDE_STARTER_SCENARIO_ID,
+} from '@/game/config/scenario';
 import {
   applyApprovalUnlocks,
   checkApprovalLevel2Unlock,
@@ -146,7 +150,7 @@ describe('redevelopment commands', () => {
       return;
     }
 
-    expect(result.state.buildings).toHaveLength(0);
+    expect(result.state.buildings).toHaveLength(1);
     expect(result.state.cash).toBe(starter.cash - cost);
     expect(result.state.ledger.at(-1)?.lines[0]?.category).toBe('demolition_cost');
   });
@@ -163,7 +167,7 @@ describe('redevelopment commands', () => {
       return;
     }
 
-    expect(result.state.buildings).toHaveLength(0);
+    expect(result.state.buildings).toHaveLength(1);
     expect(result.state.cash).toBe(starter.cash + proceeds);
     expect(result.state.ledger.at(-1)?.lines[0]?.category).toBe('sale_proceeds');
   });
@@ -212,16 +216,19 @@ describe('mixed-use win objective', () => {
       renovated: false,
     };
 
-    let state = withStatePatch(createStarterGameState(RIVERSIDE_STARTER_SCENARIO_ID, 'phase6-win'), {
-      approval: { level: 2, unlockedLevels: [1, 2] },
-      cash: 80_000,
-      appeal: 70,
-      buildings: [mixedUseBuilding],
-      counters: {
-        ...createStarterGameState(RIVERSIDE_STARTER_SCENARIO_ID).counters,
-        consecutiveWinConditionMonths: 2,
+    let state = withStatePatch(
+      createStarterGameState(RIVERSIDE_STARTER_SCENARIO_ID, 'phase6-win'),
+      {
+        approval: { level: 2, unlockedLevels: [1, 2] },
+        cash: 80_000,
+        appeal: 70,
+        buildings: [mixedUseBuilding],
+        counters: {
+          ...createStarterGameState(RIVERSIDE_STARTER_SCENARIO_ID).counters,
+          consecutiveWinConditionMonths: 2,
+        },
       },
-    });
+    );
 
     const met = checkWinConditionsMet(state, config, config.balance, 15_000, 100);
     expect(met).toBe(true);
@@ -244,16 +251,19 @@ describe('mixed-use win objective', () => {
       renovated: false,
     };
 
-    const state = withStatePatch(createStarterGameState(RIVERSIDE_STARTER_SCENARIO_ID, 'phase6-win-path'), {
-      approval: { level: 2, unlockedLevels: [1, 2] },
-      cash: 120_000,
-      appeal: 70,
-      buildings: [mixedUseBuilding],
-      counters: {
-        ...createStarterGameState(RIVERSIDE_STARTER_SCENARIO_ID).counters,
-        consecutiveWinConditionMonths: 2,
+    const state = withStatePatch(
+      createStarterGameState(RIVERSIDE_STARTER_SCENARIO_ID, 'phase6-win-path'),
+      {
+        approval: { level: 2, unlockedLevels: [1, 2] },
+        cash: 120_000,
+        appeal: 70,
+        buildings: [mixedUseBuilding],
+        counters: {
+          ...createStarterGameState(RIVERSIDE_STARTER_SCENARIO_ID).counters,
+          consecutiveWinConditionMonths: 2,
+        },
       },
-    });
+    );
 
     const won = applyWinProgress(state, config, config.balance, 15_000, 100);
     expect(won.status).toBe('won');
@@ -283,7 +293,7 @@ describe('starter scenario win path setup', () => {
     const commit = placeProject(state, config, {
       definitionId: 'shop_apartments',
       footprint: {
-        origin: { x: 3, y: 6 },
+        origin: { x: 6, y: 6 },
         width: definition.footprint.width,
         height: definition.footprint.height,
         rotation: 0,

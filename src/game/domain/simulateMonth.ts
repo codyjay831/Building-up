@@ -8,6 +8,7 @@ import { calculateCombinedOccupancyPercent, processMonthlyLeasing } from '@/game
 import { applyApprovalUnlocks, completeRenovations } from '@/game/domain/progression';
 import { processMonthlyDebtPayments } from '@/game/domain/debt';
 import { applyInsolvencyProgress, applyLossCondition } from '@/game/domain/recovery';
+import { calculatePropertyHealthSnapshot } from '@/game/domain/propertyHealth';
 import { applyWinProgress } from '@/game/domain/winLoss';
 import { appendMonthlyLedgerEntry, createLedgerLine } from '@/game/domain/ledger';
 import { calculatePropertyParking } from '@/game/domain/parking';
@@ -30,6 +31,14 @@ export function simulateMonth(
 ): CommandResult {
   const openingCash = state.cash;
   const nextMonth = state.month + 1;
+  const previousPropertyHealthSnapshot = (() => {
+    const snapshot = calculatePropertyHealthSnapshot(state, config);
+    return {
+      score: snapshot.score,
+      occupancyPercent: snapshot.occupancyPercent,
+    };
+  })();
+
   let workingState: GameState = {
     ...state,
     month: nextMonth,
@@ -81,11 +90,18 @@ export function simulateMonth(
   let lineIndex = 0;
   const lines: LedgerLine[] = [];
 
-  for (const drawLine of constructionResult.drawLines) {
+  for (const advanceLine of constructionResult.advanceLines) {
     lines.push(
-      createLedgerLine(entryId, lineIndex, 'construction_draw', drawLine.label, drawLine.amount, {
-        projectId: drawLine.projectId,
-      }),
+      createLedgerLine(
+        entryId,
+        lineIndex,
+        advanceLine.category,
+        advanceLine.label,
+        advanceLine.amount,
+        {
+          projectId: advanceLine.projectId,
+        },
+      ),
     );
     lineIndex += 1;
   }
@@ -127,16 +143,48 @@ export function simulateMonth(
       buildingName: definition?.name ?? change.buildingId,
       residentialDelta: change.residentialDelta,
       retailDelta: change.retailDelta,
+      residentialLeasingScore: change.residentialLeasingScore,
+      retailLeasingScore: change.retailLeasingScore,
+      residentialTopFactors: change.residentialTopFactors,
+      retailTopFactors: change.retailTopFactors,
+      moveOutThreshold: config.balance.leasingMoveOutThreshold,
+      moveInThreshold: config.balance.leasingMoveInThreshold,
     };
   });
+
+  const demandChange =
+    workingState.market.residentialDemand !== state.market.residentialDemand ||
+    workingState.market.retailDemand !== state.market.retailDemand
+      ? {
+          residentialDemand: workingState.market.residentialDemand,
+          retailDemand: workingState.market.retailDemand,
+          previousResidentialDemand: state.market.residentialDemand,
+          previousRetailDemand: state.market.retailDemand,
+        }
+      : undefined;
 
   const withLedger = appendMonthlyLedgerEntry(workingState, nextMonth, openingCash, lines, {
     grossRent: economy.grossRent,
     operatingExpenses: economy.operatingExpenses,
     occupancyChanges,
+    demandChange,
+    previousPropertyHealthSnapshot,
   });
 
-  const netCashFlow = withLedger.entry.netCashFlow;
+  const propertyHealthSnapshot = (() => {
+    const snapshot = calculatePropertyHealthSnapshot({ ...withLedger.state, appeal }, config);
+    return {
+      score: snapshot.score,
+      occupancyPercent: snapshot.occupancyPercent,
+    };
+  })();
+
+  const finalLedgerEntry = {
+    ...withLedger.entry,
+    propertyHealthSnapshot,
+  };
+
+  const netCashFlow = finalLedgerEntry.netCashFlow;
   const consecutivePositiveCashFlowMonths =
     netCashFlow > 0 ? state.counters.consecutivePositiveCashFlowMonths + 1 : 0;
   const occupancyPercent = calculateCombinedOccupancyPercent(withLedger.state, config);
@@ -158,6 +206,9 @@ export function simulateMonth(
   let finalState: GameState = {
     ...withLedger.state,
     appeal,
+    ledger: withLedger.state.ledger.map((entry) =>
+      entry.id === withLedger.entry.id ? finalLedgerEntry : entry,
+    ),
     counters: {
       ...withLedger.state.counters,
       consecutivePositiveCashFlowMonths,

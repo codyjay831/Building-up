@@ -1,67 +1,28 @@
 import { createBuildingDefinitionMap, loadBuildingDefinitions } from '@/game/config/buildings';
 import { loadBalanceAssumptions } from '@/game/config/balance';
+import { loadConstructionFinanceEras } from '@/game/config/constructionFinance';
 import { deriveRunId } from '@/game/domain/prng';
+import { SCHEMA_VERSION } from '@/game/domain/types';
 import type {
   GameConfig,
   GameState,
   ProgressCounters,
   ScenarioDefinition,
-  StarterBuildingSpec,
-  TileCoord,
 } from '@/game/domain/types';
 
 export const RIVERSIDE_STARTER_SCENARIO_ID = 'riverside_starter';
-export const SUBURB_STARTER_SCENARIO_ID = 'suburb_starter';
-
-const SUBURB_LOT_WIDTH = 24;
-const SUBURB_LOT_HEIGHT = 18;
-
-function createSuburbStreetTiles(): readonly TileCoord[] {
-  const tiles: TileCoord[] = [];
-  const streetRows = [4, 9, 14, SUBURB_LOT_HEIGHT - 1];
-
-  for (const y of streetRows) {
-    for (let x = 0; x < SUBURB_LOT_WIDTH; x += 1) {
-      tiles.push({ x, y });
-    }
-  }
-
-  return tiles;
-}
-
-function createSuburbStarterBuildings(): readonly StarterBuildingSpec[] {
-  const xOrigins = [1, 5, 9, 13, 17, 21];
-  const yOrigins = [1, 6, 11];
-  const buildings: StarterBuildingSpec[] = [];
-
-  for (const y of yOrigins) {
-    for (const x of xOrigins) {
-      buildings.push({
-        definitionId: 'suburb_house',
-        footprint: {
-          origin: { x, y },
-          width: 2,
-          height: 3,
-          rotation: 0,
-        },
-        condition: 72,
-        residentialOccupied: 0,
-        lifecycleState: 'leasing',
-      });
-    }
-  }
-
-  return buildings;
-}
 
 const STARTER_SCENARIOS: readonly ScenarioDefinition[] = [
   {
     id: RIVERSIDE_STARTER_SCENARIO_ID,
     name: 'Lot 12 — Riverside Starter',
+    startYear: 1946,
     theme: 'urban',
+    winProfile: 'mixed_use_stabilization',
+    objectiveLabel: 'Build and stabilize a mixed-use property.',
+    winBannerLabel: 'Mixed-use stabilized.',
     residentialDemand: 55,
     retailDemand: 32,
-    lockedBuildingIds: ['duplex', 'small_apartment', 'apartment_4u'],
     lot: {
       width: 12,
       height: 12,
@@ -79,6 +40,18 @@ const STARTER_SCENARIOS: readonly ScenarioDefinition[] = [
         residentialOccupied: 1,
         lifecycleState: 'operating',
       },
+      {
+        definitionId: 'access_path',
+        footprint: {
+          origin: { x: 5, y: 7 },
+          width: 1,
+          height: 3,
+          rotation: 0,
+        },
+        condition: 100,
+        residentialOccupied: 0,
+        lifecycleState: 'operating',
+      },
     ],
     driveway: {
       tiles: [
@@ -90,27 +63,7 @@ const STARTER_SCENARIOS: readonly ScenarioDefinition[] = [
     appealRules: {
       vacancyPenaltyEnabled: true,
     },
-  },
-  {
-    id: SUBURB_STARTER_SCENARIO_ID,
-    name: 'Oak Hollow — Suburb Starter',
-    theme: 'suburb',
-    residentialDemand: 50,
-    retailDemand: 32,
-    lockedBuildingIds: [],
-    lot: {
-      width: SUBURB_LOT_WIDTH,
-      height: SUBURB_LOT_HEIGHT,
-    },
-    starterBuildings: createSuburbStarterBuildings(),
-    driveway: {
-      tiles: createSuburbStreetTiles(),
-      parkingCapacity: 0,
-    },
-    startingCashOverride: 280_000,
-    appealRules: {
-      vacancyPenaltyEnabled: false,
-    },
+    tutorialBuildingDefinitionId: 'existing_house',
   },
 ];
 
@@ -160,13 +113,14 @@ export function createGameConfig(): GameConfig {
     buildings: createBuildingDefinitionMap(buildingList),
     buildingList,
     balance: loadBalanceAssumptions(),
+    constructionFinanceEras: loadConstructionFinanceEras(),
     scenarios: createScenarioMap(),
   };
 }
 
 export function createStarterGameState(
-  scenarioId: string = SUBURB_STARTER_SCENARIO_ID,
-  seed = 'suburb-starter-default',
+  scenarioId: string = RIVERSIDE_STARTER_SCENARIO_ID,
+  seed = 'riverside-starter-default',
   config: GameConfig = createGameConfig(),
 ): GameState {
   const scenario = getScenarioDefinition(config.scenarios, scenarioId);
@@ -188,7 +142,7 @@ export function createStarterGameState(
   }));
 
   return {
-    schemaVersion: 1,
+    schemaVersion: SCHEMA_VERSION,
     runId: deriveRunId(seed),
     seed,
     scenarioId,
@@ -198,7 +152,7 @@ export function createStarterGameState(
     lot: {
       width: scenario.lot.width,
       height: scenario.lot.height,
-      accessTiles: scenario.driveway.tiles,
+      drivewayTiles: scenario.driveway.tiles,
       accessParkingCapacity: scenario.driveway.parkingCapacity,
     },
     buildings,
@@ -224,13 +178,6 @@ export function createStarterGameState(
   };
 }
 
-export function isBuildingLockedInScenario(
-  scenario: ScenarioDefinition,
-  definitionId: string,
-): boolean {
-  return scenario.lockedBuildingIds.includes(definitionId);
-}
-
 export function getScenarioAppealRules(
   scenarios: ReadonlyMap<string, ScenarioDefinition>,
   scenarioId: string,
@@ -239,4 +186,25 @@ export function getScenarioAppealRules(
   return {
     vacancyPenaltyEnabled: scenario.appealRules?.vacancyPenaltyEnabled ?? true,
   };
+}
+
+export function getTutorialBuildingId(
+  _scenario: ScenarioDefinition,
+  buildings: readonly { readonly id: string }[],
+): string | null {
+  return buildings[0]?.id ?? null;
+}
+
+export function getTutorialBuildingDefinitionId(scenario: ScenarioDefinition): string {
+  if (scenario.tutorialBuildingDefinitionId) {
+    return scenario.tutorialBuildingDefinitionId;
+  }
+
+  const firstStarter = scenario.starterBuildings.at(0);
+
+  if (firstStarter === undefined) {
+    throw new Error(`Scenario ${scenario.id} requires at least one starter building`);
+  }
+
+  return firstStarter.definitionId;
 }

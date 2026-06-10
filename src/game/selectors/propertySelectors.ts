@@ -1,16 +1,26 @@
 import { formatMoney } from '@/game/domain/money';
+import { calculateMonthlyEconomy } from '@/game/domain/economy';
 import { calculatePropertyParking } from '@/game/domain/parking';
 import { getPropertyDemandView } from '@/game/selectors/leasingSelectors';
+import { getCombinedOccupancyView } from '@/game/selectors/occupancySelectors';
+import { getPropertyHealthView } from '@/game/selectors/propertyHealthSelectors';
 import { getScenarioDefinition } from '@/game/config/scenario';
+import { formatCalendarLabel } from '@/game/domain/calendar';
 import type { GameConfig, GameState, MonthlyLedgerEntry } from '@/game/domain/types';
 
 export interface PropertySummary {
   readonly scenarioName: string;
+  readonly calendarLabel: string;
   readonly month: number;
   readonly cashLabel: string;
   readonly monthlyNetLabel: string;
-  readonly monthlyNetTone: 'neutral' | 'positive' | 'negative';
+  readonly monthlyNetTone: 'neutral' | 'positive' | 'negative' | 'projected';
+  readonly monthlyNetIsProjected: boolean;
   readonly occupancyLabel: string;
+  readonly occupancyPercent: number;
+  readonly residentsLabel: string;
+  readonly propertyHealthLabel: string;
+  readonly propertyHealthTone: 'healthy' | 'at_risk' | 'declining' | 'critical';
   readonly parkingLabel: string;
   readonly parkingShortfallLabel: string | null;
   readonly appealLabel: string;
@@ -38,31 +48,49 @@ export function getPropertySummary(
   config: Readonly<GameConfig>,
 ): PropertySummary {
   const scenario = getScenarioDefinition(config.scenarios, state.scenarioId);
-  const totalResidentialUnits = state.buildings.reduce((total, building) => {
-    const definition = config.buildings.get(building.definitionId);
-    return total + (definition?.residentialUnits ?? 0);
-  }, 0);
-  const totalResidentialOccupied = state.buildings.reduce(
-    (total, building) => total + building.residentialOccupied,
-    0,
-  );
+  const combinedOccupancy = getCombinedOccupancyView(state, config);
+  const propertyHealth = getPropertyHealthView(state, config);
   const parking = calculatePropertyParking(state, config);
   const demandView = getPropertyDemandView(state, config);
   const latestMonthly = getLatestMonthlyLedgerEntry(state);
   const monthlyNet = latestMonthly?.netCashFlow;
+  const projectedEconomy =
+    monthlyNet === undefined
+      ? calculateMonthlyEconomy(state, config, config.balance, 'projected-hud')
+      : null;
+  const projectedNet =
+    projectedEconomy !== null
+      ? projectedEconomy.grossRent - projectedEconomy.operatingExpenses
+      : undefined;
+  const monthlyNetIsProjected = monthlyNet === undefined && projectedNet !== undefined;
+  const displayNet = monthlyNet ?? projectedNet;
   const monthlyNetTone =
-    monthlyNet === undefined ? 'neutral' : monthlyNet >= 0 ? 'positive' : 'negative';
+    displayNet === undefined
+      ? 'neutral'
+      : monthlyNetIsProjected
+        ? 'projected'
+        : displayNet >= 0
+          ? 'positive'
+          : 'negative';
 
   return {
     scenarioName: scenario.name,
+    calendarLabel: formatCalendarLabel(state, config),
     month: state.month,
     cashLabel: formatMoney(state.cash),
-    monthlyNetLabel: monthlyNet === undefined ? '—' : formatMoney(monthlyNet),
+    monthlyNetLabel:
+      displayNet === undefined
+        ? '—'
+        : monthlyNetIsProjected
+          ? `~${formatMoney(displayNet)} projected`
+          : formatMoney(displayNet),
     monthlyNetTone,
-    occupancyLabel:
-      totalResidentialUnits > 0
-        ? `${String(totalResidentialOccupied)}/${String(totalResidentialUnits)} units`
-        : '—',
+    monthlyNetIsProjected,
+    occupancyLabel: combinedOccupancy.label,
+    occupancyPercent: combinedOccupancy.percent,
+    residentsLabel: combinedOccupancy.label,
+    propertyHealthLabel: String(propertyHealth.score),
+    propertyHealthTone: propertyHealth.tone,
     parkingLabel: `${String(parking.capacity)} capacity / ${String(parking.demand)} demand`,
     parkingShortfallLabel: demandView.parkingShortfallLabel,
     appealLabel: String(state.appeal),

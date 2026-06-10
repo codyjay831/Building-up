@@ -1,9 +1,11 @@
 import { getBuildingDefinition } from '@/game/config/buildings';
-import { isBuildingLockedInScenario } from '@/game/config/scenario';
-import { hasRoadAccess } from '@/game/domain/accessibility';
 import { getFootprintTiles, footprintWithinLot } from '@/game/domain/grid';
 import { getCommitmentDeposit } from '@/game/domain/construction';
 import { hasSufficientCash } from '@/game/domain/money';
+import {
+  simulateBuildingsAfterPlacement,
+  validateRoadAccessPlacement,
+} from '@/game/domain/roadAccessValidation';
 import type {
   BuildingDefinition,
   GameConfig,
@@ -25,10 +27,21 @@ export interface ValidatePlacementInput {
   readonly footprint: PlacedFootprint;
   readonly ignoreBuildingId?: string;
   readonly purpose?: 'place' | 'relocate';
+  readonly minimumCashRequired?: number;
+  readonly skipCashCheck?: boolean;
 }
 
 export function validatePlacement(input: ValidatePlacementInput): PlacementFailure | { ok: true } {
-  const { state, config, definition, footprint, ignoreBuildingId, purpose = 'place' } = input;
+  const {
+    state,
+    config,
+    definition,
+    footprint,
+    ignoreBuildingId,
+    purpose = 'place',
+    minimumCashRequired,
+    skipCashCheck = false,
+  } = input;
   const scenario = config.scenarios.get(state.scenarioId);
 
   if (!scenario) {
@@ -40,13 +53,6 @@ export function validatePlacement(input: ValidatePlacementInput): PlacementFailu
       return failure('building_locked', `${definition.name} is not enabled in the MVP`);
     }
 
-    if (isBuildingLockedInScenario(scenario, definition.id)) {
-      return failure(
-        'building_locked',
-        `${definition.name} is locked until later progression in this scenario`,
-      );
-    }
-
     if (state.approval.level < definition.approvalRequired) {
       return failure(
         'insufficient_approval',
@@ -54,13 +60,15 @@ export function validatePlacement(input: ValidatePlacementInput): PlacementFailu
       );
     }
 
-    const commitmentDeposit = getCommitmentDeposit(definition);
+    if (!skipCashCheck) {
+      const requiredCash = minimumCashRequired ?? getCommitmentDeposit(definition);
 
-    if (!hasSufficientCash(state.cash, commitmentDeposit)) {
-      return failure(
-        'insufficient_cash',
-        `Insufficient cash for ${definition.name} commitment. Required ${String(commitmentDeposit)}, available ${String(state.cash)}`,
-      );
+      if (!hasSufficientCash(state.cash, requiredCash)) {
+        return failure(
+          'insufficient_cash',
+          `Insufficient cash for ${definition.name} commitment. Required ${String(requiredCash)}, available ${String(state.cash)}`,
+        );
+      }
     }
   }
 
@@ -93,21 +101,37 @@ export function validatePlacement(input: ValidatePlacementInput): PlacementFailu
       return failure('construction_overlap', 'Footprint overlaps an active construction project');
     }
 
-    const blockedByAccess = state.lot.accessTiles.some(
-      (accessTile) => accessTile.x === tile.x && accessTile.y === tile.y,
+    const blockedByDriveway = state.lot.drivewayTiles.some(
+      (drivewayTile) => drivewayTile.x === tile.x && drivewayTile.y === tile.y,
     );
 
-    if (blockedByAccess) {
-      return failure('access_tile_blocked', 'Footprint overlaps driveway or access tiles');
+    if (blockedByDriveway) {
+      return failure('access_tile_blocked', 'Footprint overlaps the driveway');
     }
   }
 
-  const buildingsForRoadAccess = ignoreBuildingId
+  const buildingsForCheck = ignoreBuildingId
     ? state.buildings.filter((building) => building.id !== ignoreBuildingId)
     : state.buildings;
 
-  if (!hasRoadAccess(footprint, definition, state.lot, buildingsForRoadAccess, state.projects)) {
-    return failure('no_road_access', `${definition.name} requires road access`);
+  const buildingsAfter = simulateBuildingsAfterPlacement(
+    state,
+    footprint,
+    definition.id,
+    ignoreBuildingId,
+  );
+
+  const roadAccessValidation = validateRoadAccessPlacement(
+    state,
+    config,
+    definition,
+    footprint,
+    buildingsForCheck,
+    buildingsAfter,
+  );
+
+  if (!roadAccessValidation.ok) {
+    return roadAccessValidation;
   }
 
   return { ok: true };

@@ -16,7 +16,8 @@ export function DebugBanner({ onOpen }: { readonly onOpen: () => void }) {
   return (
     <div className={styles.debugBanner} data-testid="debug-mode-banner">
       <span>
-        <strong>Debug mode active.</strong> Tools can mutate the live run without a separate sandbox.
+        <strong>Debug mode active.</strong> Tools can mutate the live run without a separate
+        sandbox.
       </span>
       <button type="button" className={styles.debugToggle} onClick={onOpen}>
         Open debug panel

@@ -1,4 +1,5 @@
-import { calculateMonthlyEconomy } from '@/game/domain/economy';
+import { getBuildingDefinition } from '@/game/config/buildings';
+import { getBuildingEconomyPreview } from '@/game/domain/economy';
 import { assertWholeDollars } from '@/game/domain/money';
 import type {
   BalanceAssumptions,
@@ -56,20 +57,18 @@ export function calculateBuildingMonthlyNetIncome(
   config: Readonly<GameConfig>,
   buildingId: string,
 ): number {
-  const economy = calculateMonthlyEconomy(state, config, config.balance, 'preview');
-  let net = 0;
+  const building = state.buildings.find((candidate) => candidate.id === buildingId);
 
-  for (const line of economy.rentLines) {
-    if (line.buildingId === buildingId) {
-      net += line.amount;
-    }
+  if (!building) {
+    return 0;
   }
 
-  for (const line of economy.expenseLines) {
-    if (line.buildingId === buildingId) {
-      net += line.amount;
-    }
+  const definition = getBuildingDefinition(config.buildings, building.definitionId);
+  const preview = getBuildingEconomyPreview(building, definition, config.balance);
+
+  if (!preview) {
+    return 0;
   }
 
-  return net;
+  return preview.rent.totalRent - preview.expense.totalExpense;
 }

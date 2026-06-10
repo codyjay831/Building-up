@@ -25,8 +25,11 @@ export function loadOnboardingProgress(): OnboardingProgress {
       keepDecisionMade: parsed.keepDecisionMade ?? initial.keepDecisionMade,
       reportReadAfterFirstMonth:
         parsed.reportReadAfterFirstMonth ?? initial.reportReadAfterFirstMonth,
+      tutorialInspectorOpened: parsed.tutorialInspectorOpened ?? initial.tutorialInspectorOpened,
       tutorialComplete: parsed.tutorialComplete ?? initial.tutorialComplete,
       scenarioCardDismissed: parsed.scenarioCardDismissed ?? initial.scenarioCardDismissed,
+      guideDisabled: parsed.guideDisabled ?? initial.guideDisabled,
+      guideCollapsed: parsed.guideCollapsed ?? initial.guideCollapsed,
     };
   } catch {
     return createInitialOnboardingProgress();

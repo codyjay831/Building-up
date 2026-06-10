@@ -1,0 +1,6 @@
+id,label,start_year,end_year,min_project_cost,equity_percent,annual_interest_rate
+post_war,Post-war,1946,1959,40000,40,4.5
+expansion,Expansion,1960,1969,35000,35,6.0
+inflation,Inflation,1970,1989,30000,30,8.5
+modern,Modern,1990,2009,25000,25,6.5
+current,Current,2010,,25000,25,7.5

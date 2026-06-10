@@ -1,10 +1,12 @@
 import { addMoney, assertWholeDollars, sumMoney } from '@/game/domain/money';
 import type {
+  DemandLedgerChange,
   GameState,
   LedgerLine,
   LedgerLineCategory,
   MonthlyLedgerEntry,
   OccupancyLedgerChange,
+  PropertyHealthLedgerSnapshot,
 } from '@/game/domain/types';
 
 export function createLedgerLineId(entryId: string, index: number): string {
@@ -76,6 +78,9 @@ export function appendMonthlyLedgerEntry(
     readonly grossRent: number;
     readonly operatingExpenses: number;
     readonly occupancyChanges?: readonly OccupancyLedgerChange[];
+    readonly demandChange?: DemandLedgerChange;
+    readonly propertyHealthSnapshot?: PropertyHealthLedgerSnapshot;
+    readonly previousPropertyHealthSnapshot?: PropertyHealthLedgerSnapshot;
   },
 ): { readonly state: GameState; readonly entry: MonthlyLedgerEntry } {
   const netCashFlow = sumMoney(lines.map((line) => line.amount));
@@ -98,6 +103,9 @@ export function appendMonthlyLedgerEntry(
       totals.occupancyChanges && totals.occupancyChanges.length > 0
         ? totals.occupancyChanges
         : undefined,
+    demandChange: totals.demandChange,
+    propertyHealthSnapshot: totals.propertyHealthSnapshot,
+    previousPropertyHealthSnapshot: totals.previousPropertyHealthSnapshot,
   };
 
   return {

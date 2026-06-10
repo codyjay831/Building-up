@@ -36,6 +36,10 @@ export interface OccupancyChange {
   readonly buildingId: string;
   readonly residentialDelta: number;
   readonly retailDelta: number;
+  readonly residentialLeasingScore?: number;
+  readonly retailLeasingScore?: number;
+  readonly residentialTopFactors?: readonly { readonly key: string; readonly value: number }[];
+  readonly retailTopFactors?: readonly { readonly key: string; readonly value: number }[];
 }
 
 function clampScore(value: number): number {
@@ -170,6 +174,25 @@ export function calculateLeasingScore(
   };
 }
 
+function getTopNegativeLeasingFactors(
+  factors: LeasingFactorBreakdown,
+): readonly { readonly key: string; readonly value: number }[] {
+  const keys: (keyof LeasingFactorBreakdown)[] = [
+    'demand',
+    'appeal',
+    'condition',
+    'rentPosture',
+    'parking',
+    'buildingPreference',
+  ];
+
+  return keys
+    .map((key) => ({ key, value: factors[key] }))
+    .filter((entry) => entry.value < 0)
+    .sort((left, right) => left.value - right.value)
+    .slice(0, 3);
+}
+
 function getMaxMonthlyOccupancyChanges(
   definition: Readonly<BuildingDefinition>,
   balance: Readonly<BalanceAssumptions>,
@@ -227,9 +250,7 @@ function processUnitOccupancy(input: {
   if (vacant > 0 && input.leasingScore >= input.balance.leasingMoveInThreshold) {
     const span = 100 - input.balance.leasingMoveInThreshold + 1;
     const probability =
-      span === 0
-        ? 1
-        : (input.leasingScore - input.balance.leasingMoveInThreshold + 1) / span;
+      span === 0 ? 1 : (input.leasingScore - input.balance.leasingMoveInThreshold + 1) / span;
     const [shouldMoveIn, nextCounter] = rollMoveIn(probability, rng);
     rng = { ...rng, counter: nextCounter };
 
@@ -350,6 +371,12 @@ export function processMonthlyLeasing(
         buildingId: building.id,
         residentialDelta,
         retailDelta,
+        residentialLeasingScore: residentialDelta !== 0 ? residentialScore.total : undefined,
+        retailLeasingScore: retailDelta !== 0 && retailScore ? retailScore.total : undefined,
+        residentialTopFactors:
+          residentialDelta < 0 ? getTopNegativeLeasingFactors(residentialScore) : undefined,
+        retailTopFactors:
+          retailDelta < 0 && retailScore ? getTopNegativeLeasingFactors(retailScore) : undefined,
       });
     }
 

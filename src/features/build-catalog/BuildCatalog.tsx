@@ -1,5 +1,4 @@
 import { formatMoney } from '@/game/domain/money';
-import { isBuildingLockedInScenario } from '@/game/config/scenario';
 import type { BuildingDefinition } from '@/game/domain/types';
 import { formatFootprintSize } from '@/game/selectors/buildingSelectors';
 import { useGameStore } from '@/game/store/gameStore';
@@ -12,6 +11,7 @@ const BUILDING_ROLES: Readonly<Record<string, string>> = {
   corner_shop: 'Ground-floor retail that benefits from road visibility.',
   shop_apartments: 'Mixed-use income with retail below and homes above.',
   surface_parking: 'Adds off-street spaces to support retail demand.',
+  access_path: 'Paved walk connecting the driveway to buildings farther on the lot.',
   small_park: 'Boosts appeal without requiring road frontage.',
   duplex: 'Two-unit residential upgrade for later progression.',
   apartment_4u: 'Compact four-unit apartment building for denser suburb growth.',
@@ -22,12 +22,15 @@ function getBuildingRole(definition: BuildingDefinition): string {
   return BUILDING_ROLES[definition.id] ?? `${definition.category} structure for this lot.`;
 }
 
-export function BuildCatalog() {
+interface BuildCatalogProps {
+  readonly onItemSelected?: () => void;
+}
+
+export function BuildCatalog({ onItemSelected }: BuildCatalogProps) {
   const config = useGameStore((store) => store.config);
   const gameState = useGameStore((store) => store.gameState);
   const ui = useGameStore((store) => store.ui);
   const selectCatalogItem = useGameStore((store) => store.selectCatalogItem);
-  const scenario = config.scenarios.get(gameState.scenarioId);
 
   const catalogItems = config.buildingList.filter(
     (definition) => definition.enabledInMvp && definition.id !== 'existing_house',
@@ -42,9 +45,8 @@ export function BuildCatalog() {
 
       <ul className={styles.cardList}>
         {catalogItems.map((definition) => {
-          const locked = scenario ? isBuildingLockedInScenario(scenario, definition.id) : false;
           const approvalBlocked = gameState.approval.level < definition.approvalRequired;
-          const disabled = locked || approvalBlocked;
+          const disabled = approvalBlocked;
           const selected = ui.selectedCatalogItemId === definition.id;
 
           return (
@@ -57,7 +59,13 @@ export function BuildCatalog() {
                 disabled={disabled}
                 aria-pressed={selected}
                 onClick={() => {
-                  selectCatalogItem(selected ? null : definition.id);
+                  if (!selected) {
+                    selectCatalogItem(definition.id);
+                    onItemSelected?.();
+                    return;
+                  }
+
+                  selectCatalogItem(null);
                 }}
               >
                 <div className={styles.cardHeader}>
@@ -83,8 +91,7 @@ export function BuildCatalog() {
                   </div>
                 </dl>
                 <p className={styles.cardRole}>{getBuildingRole(definition)}</p>
-                {locked && <p className={styles.cardLock}>Locked in this scenario</p>}
-                {!locked && approvalBlocked && (
+                {approvalBlocked && (
                   <p className={styles.cardLock}>
                     Requires Approval Level {definition.approvalRequired}
                   </p>

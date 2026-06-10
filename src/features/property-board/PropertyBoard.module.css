@@ -4,25 +4,32 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: stretch;
   gap: var(--space-2);
-  padding: var(--space-3);
+  padding: var(--space-2);
 }
 
 .boardFrame {
+  container-type: size;
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  align-items: center;
-  max-width: 100%;
-  max-height: 100%;
+  align-items: stretch;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
 }
 
 .boardScroll {
+  container-type: size;
+  flex: 1;
+  width: 100%;
+  min-height: 0;
   overflow: auto;
-  max-width: 100%;
-  max-height: calc(100vh - 140px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: var(--space-1);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
@@ -32,7 +39,10 @@
 .boardGrid {
   display: grid;
   gap: 2px;
-  width: max-content;
+  aspect-ratio: var(--lot-aspect-ratio);
+  width: min(100cqw, calc(100cqh * var(--lot-aspect-ratio)));
+  height: auto;
+  max-height: 100cqh;
   padding: var(--space-2);
 }
 
@@ -43,8 +53,8 @@
 .tileButton {
   border: 1px solid transparent;
   border-radius: 2px;
-  min-width: 10px;
-  min-height: 10px;
+  min-width: 4px;
+  min-height: 4px;
   width: 100%;
   height: 100%;
   aspect-ratio: 1;
@@ -60,8 +70,53 @@
 }
 
 .tileButton[data-tile-kind='access'] {
-  background: linear-gradient(180deg, rgb(71 85 105 / 90%) 0%, rgb(51 65 85 / 95%) 100%);
-  border-color: rgb(148 163 184 / 25%);
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgb(30 35 45 / 95%) 0,
+      rgb(30 35 45 / 95%) 8px,
+      rgb(45 50 60 / 95%) 8px,
+      rgb(45 50 60 / 95%) 16px
+    ),
+    linear-gradient(180deg, rgb(55 65 81 / 95%) 0%, rgb(31 41 55 / 98%) 100%);
+  border-color: rgb(100 116 139 / 45%);
+}
+
+.boardFrame[data-scenario-theme='urban'] .tileButton[data-tile-kind='access'] {
+  background:
+    linear-gradient(180deg, rgb(75 85 99 / 90%) 0%, rgb(51 65 85 / 95%) 100%),
+    repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent 6px,
+      rgb(148 163 184 / 20%) 6px,
+      rgb(148 163 184 / 20%) 8px
+    );
+}
+
+.tileButton[data-tile-kind='road-network'] {
+  background: rgb(74 222 128 / 18%);
+  border-color: rgb(74 222 128 / 30%);
+}
+
+.tileButton[data-tile-kind='road-reachable'] {
+  background: rgb(74 222 128 / 18%);
+  border-color: rgb(74 222 128 / 30%);
+}
+
+.tileButton[data-tutorial-target='true'] {
+  animation: tutorial-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes tutorial-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(56 189 248 / 0%);
+  }
+
+  50% {
+    box-shadow: 0 0 0 3px rgb(56 189 248 / 75%);
+  }
 }
 
 .tileButton[data-tile-kind='building'] {
@@ -86,6 +141,19 @@
 
 .tileButton[data-tile-kind='building'][data-category='amenity'] {
   background: linear-gradient(180deg, rgb(22 163 74 / 85%) 0%, rgb(20 83 45 / 95%) 100%);
+}
+
+.tileButton[data-tile-kind='building'][data-category='infrastructure'] {
+  background:
+    linear-gradient(180deg, rgb(71 85 105 / 90%) 0%, rgb(51 65 85 / 95%) 100%),
+    repeating-linear-gradient(
+      -45deg,
+      transparent 0,
+      transparent 4px,
+      rgb(148 163 184 / 18%) 4px,
+      rgb(148 163 184 / 18%) 6px
+    );
+  border-color: rgb(148 163 184 / 35%);
 }
 
 .tileButton[data-vacancy='partial'] {
@@ -119,6 +187,18 @@
     rgb(120 53 15 / 75%) 12px
   );
   border-color: rgb(234 179 8 / 45%);
+  animation: construction-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes construction-pulse {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+
+  50% {
+    filter: brightness(1.15);
+  }
 }
 
 .tileButton[data-tile-kind='selected-construction'] {
@@ -144,8 +224,19 @@
   border-color: var(--color-negative);
 }
 
+.tileButton[data-tile-kind='driveway-preview-valid'] {
+  background: rgb(74 222 128 / 22%);
+  border-color: rgb(74 222 128 / 45%);
+}
+
+.tileButton[data-tile-kind='driveway-preview-invalid'] {
+  background: rgb(248 113 113 / 35%);
+  border-color: var(--color-negative);
+}
+
 .roadStrip {
-  width: min(100%, 520px);
+  align-self: center;
+  width: min(100cqw, calc(100cqh * var(--lot-aspect-ratio)));
   padding: var(--space-2);
   border-radius: var(--radius-sm);
   text-align: center;
@@ -182,4 +273,11 @@
   color: var(--color-negative);
   background: rgb(248 113 113 / 10%);
   border: 1px solid rgb(248 113 113 / 25%);
+}
+
+.boardLegend {
+  margin: 0;
+  text-align: center;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
 }

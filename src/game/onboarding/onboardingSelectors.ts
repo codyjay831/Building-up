@@ -1,14 +1,15 @@
+import { getScenarioDefinition, getTutorialBuildingDefinitionId } from '@/game/config/scenario';
 import { getLatestMonthlyLedgerEntry } from '@/game/selectors/propertySelectors';
-import type { GameState } from '@/game/domain/types';
+import type { GameConfig, GameState } from '@/game/domain/types';
 import type { UiState } from '@/game/store/storeTypes';
 
 import {
-  ONBOARDING_OBJECTIVES,
+  buildOnboardingContextFromState,
   createInitialOnboardingProgress,
   deriveCompletedObjectiveIds,
   getActiveObjectiveId,
+  getOnboardingObjectivesForScenario,
   isTutorialComplete,
-  type OnboardingContext,
   type OnboardingObjective,
   type OnboardingObjectiveId,
   type OnboardingProgress,
@@ -22,21 +23,30 @@ export interface OnboardingView {
   readonly activeObjective: OnboardingObjective | null;
   readonly tutorialComplete: boolean;
   readonly showScenarioCard: boolean;
+  readonly showGuide: boolean;
+}
+
+function isTutorialBuildingRenovated(gameState: GameState, config: GameConfig): boolean {
+  const scenario = getScenarioDefinition(config.scenarios, gameState.scenarioId);
+  const tutorialDefinitionId = getTutorialBuildingDefinitionId(scenario);
+
+  return gameState.buildings.some(
+    (building) => building.definitionId === tutorialDefinitionId && building.renovated,
+  );
 }
 
 function buildOnboardingContext(
   gameState: GameState,
   ui: UiState,
   progress: OnboardingProgress,
-): OnboardingContext {
+  config: GameConfig,
+) {
   const selectedBuilding = ui.selectedBuildingId
     ? gameState.buildings.find((building) => building.id === ui.selectedBuildingId)
     : undefined;
-  const starterHouse = gameState.buildings.find(
-    (building) => building.definitionId === 'existing_house',
-  );
+  const scenario = getScenarioDefinition(config.scenarios, gameState.scenarioId);
 
-  return {
+  return buildOnboardingContextFromState(scenario, {
     selectedBuildingId: ui.selectedBuildingId,
     selectedBuildingDefinitionId: selectedBuilding?.definitionId ?? null,
     month: gameState.month,
@@ -44,19 +54,27 @@ function buildOnboardingContext(
     reportDrawerOpen: ui.reportDrawerOpen,
     keepDecisionMade: progress.keepDecisionMade,
     reportReadAfterFirstMonth: progress.reportReadAfterFirstMonth,
-    starterHouseRenovated: starterHouse?.renovated === true,
-  };
+    tutorialInspectorOpened: progress.tutorialInspectorOpened,
+    tutorialBuildingRenovated: isTutorialBuildingRenovated(gameState, config),
+  });
 }
 
 export function getOnboardingView(
   gameState: GameState,
   ui: UiState,
   progress: OnboardingProgress,
+  config: GameConfig,
 ): OnboardingView {
-  const context = buildOnboardingContext(gameState, ui, progress);
+  const scenario = getScenarioDefinition(config.scenarios, gameState.scenarioId);
+  const context = buildOnboardingContext(gameState, ui, progress, config);
+  const objectives = getOnboardingObjectivesForScenario(scenario);
   const completedObjectiveIds = deriveCompletedObjectiveIds(context);
   const activeObjectiveId = getActiveObjectiveId(completedObjectiveIds);
   const tutorialComplete = isTutorialComplete(completedObjectiveIds);
+
+  const showScenarioCard = tutorialComplete && !progress.scenarioCardDismissed;
+  const showGuide =
+    !progress.guideDisabled && (!tutorialComplete || showScenarioCard);
 
   return {
     progress: {
@@ -64,13 +82,13 @@ export function getOnboardingView(
       completedObjectiveIds,
       tutorialComplete,
     },
-    objectives: ONBOARDING_OBJECTIVES,
+    objectives,
     completedObjectiveIds,
     activeObjectiveId,
-    activeObjective:
-      ONBOARDING_OBJECTIVES.find((objective) => objective.id === activeObjectiveId) ?? null,
+    activeObjective: objectives.find((objective) => objective.id === activeObjectiveId) ?? null,
     tutorialComplete,
-    showScenarioCard: tutorialComplete && !progress.scenarioCardDismissed,
+    showScenarioCard,
+    showGuide,
   };
 }
 

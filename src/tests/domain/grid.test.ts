@@ -12,7 +12,7 @@ import type { BuildingInstance, LotState, PlacedFootprint } from '@/game/domain/
 const lot: LotState = {
   width: 12,
   height: 12,
-  accessTiles: [{ x: 5, y: 10 }],
+  drivewayTiles: [{ x: 5, y: 10 }],
   accessParkingCapacity: 1,
 };
 

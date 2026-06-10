@@ -1,6 +1,6 @@
 # Vertical Plot Manager
 
-Browser-based turn-based property development game. The player redevelops a single urban lot through leasing, construction, demand management, and approval progression.
+Browser-based turn-based property development game. Redevelop a lot through leasing, construction, demand management, and approval progression. The default scenario is **Lot 12 — Riverside Starter**; **Oak Hollow — Suburb Starter** is available from Settings when starting a new game.
 
 ## Architecture
 
@@ -27,11 +27,18 @@ This repository follows a **deterministic domain simulation wrapped by a React U
 - Building and balance content stay configuration-driven.
 - Zustand is the store boundary only; domain modules remain pure.
 
-### Deferred until later phases
+## Current status
 
-Domain types, PRNG, placement validation, monthly simulation, demand, finance, save/load, onboarding, and playable mechanics are intentionally **not** implemented in Phase 0.
+**Phase 9 complete** — playable suburb starter scenario, save/load, guided onboarding, debug mode (`?debug=1`), fixed seed presets, telemetry export, automated smoke simulations, and balance adjustment reports.
 
-Phase 0 delivers the repository foundation and a static app shell only.
+Specification documents live in [`vertical_plot_manager_spec/`](vertical_plot_manager_spec/). Delivery history is tracked in [`vertical_plot_manager_spec/06_DELIVERY_PLAN_AND_CURSOR_PROTOCOL.md`](vertical_plot_manager_spec/06_DELIVERY_PLAN_AND_CURSOR_PROTOCOL.md).
+
+## Testing
+
+- Domain and integration tests: `src/tests/` (prefer scenario- or feature-named files over legacy `phase*.test.ts` when adding new coverage)
+- End-to-end smoke: `src/tests/e2e/`
+- Full CI locally: `npm run ci` (typecheck, lint, format, unit tests, build, Playwright)
+- Fast unit-only loop: `npm run ci:unit`
 
 ## Stack
 
@@ -75,14 +82,13 @@ npm run lint
 npm run test
 npm run test:e2e
 npm run build
+npm run ci:unit
 npm run ci
 ```
 
 ## Delivery phases
 
-Build proceeds in vertical slices defined in `vertical_plot_manager_spec/06_DELIVERY_PLAN_AND_CURSOR_PROTOCOL.md`.
-
-Current status: **Phase 9 complete** — debug mode (`?debug=1`), fixed seed presets, telemetry export, automated smoke simulations, and balance adjustment reports.
+Build proceeded in vertical slices defined in `vertical_plot_manager_spec/06_DELIVERY_PLAN_AND_CURSOR_PROTOCOL.md`. Phase 9 is the current baseline.
 
 ## Phase 1 entry prompt
 
